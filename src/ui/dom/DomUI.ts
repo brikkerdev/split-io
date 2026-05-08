@@ -68,11 +68,12 @@ export class DomUI {
     if (DomUI.sfxAttached) return;
     DomUI.sfxAttached = true;
 
-    const playSfx = (key: string, volume: number): void => {
+    const playSfx = (key: string, volume: number, detuneCents: number): void => {
       try {
-        if (game.cache.audio.exists(key)) {
-          game.sound.play(key, { volume });
-        }
+        if (!game.cache.audio.exists(key)) return;
+        const detune = (Math.random() * 2 - 1) * detuneCents;
+        const v = Math.max(0, Math.min(1, volume + (Math.random() * 2 - 1) * 0.05));
+        game.sound.play(key, { volume: v, detune });
       } catch { /* silent */ }
     };
 
@@ -80,7 +81,7 @@ export class DomUI {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (target.closest("button, [role='button'], .btn, .card")) {
-        playSfx(AUDIO.sfx.uiClick, 0.55);
+        playSfx(AUDIO.sfx.uiClick, 0.55, 200);
       }
     });
 
@@ -90,7 +91,7 @@ export class DomUI {
         const target = e.target as HTMLElement | null;
         if (!target) return;
         if (target.matches?.("button, [role='button'], .btn, .card")) {
-          playSfx(AUDIO.sfx.uiHover, 0.3);
+          playSfx(AUDIO.sfx.uiHover, 0.3, 250);
         }
       },
       true,
@@ -123,10 +124,6 @@ export class DomUI {
       this.showUpgradeModal(game, gameEvents, payload);
     });
 
-    // Dismiss hint on first input
-    gameEvents.once("input:firstmove", () => {
-      this.hud?.dismissHint();
-    });
   }
 
   dismountHUD(): void {

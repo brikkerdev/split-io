@@ -41,8 +41,12 @@ const DEPTH_TRAIL = 20;
 const DEPTH_UNIT = 30;
 
 const HERO_RADIUS_PX = 10;
-const GHOST_RADIUS_PX = 8;
 const BOT_RADIUS_PX = 9;
+
+// Split-triangle visuals — same color as hero, triangle = "the ghost".
+const SPLIT_TRI_HALF = 6;        // half of base displaySize
+const SPLIT_TRI_GAP_MIN = 2;     // spacing from hero edge while recharging (start)
+const SPLIT_TRI_GAP_MAX = 11;    // spacing when fully ready
 
 const GLOW_BOT_COUNT = 5;
 
@@ -83,7 +87,19 @@ export class GameScene extends Phaser.Scene {
   private territoryGfx!: Phaser.GameObjects.Graphics;
   private trailGfx!: Phaser.GameObjects.Graphics;
   private unitGfx!: Phaser.GameObjects.Graphics;
-  private heroMarker?: Phaser.GameObjects.Image;
+
+  // Triangle sprites — hero-colored. Loaded "split arrow" on the hero
+  // and the flying ghost. Outline twins (darker, larger, behind) are masked
+  // to hero territory so a darker rim peeks out only over own land.
+  private splitTriSprite?: Phaser.GameObjects.Image;
+  private ghostSprite?: Phaser.GameObjects.Image;
+  private splitTriOutline?: Phaser.GameObjects.Image;
+  private ghostOutline?: Phaser.GameObjects.Image;
+
+  // Hero highlight: darker outline ring drawn over hero, masked by hero
+  // territory so it only shows where the hero overlaps own cells.
+  private heroHighlightGfx?: Phaser.GameObjects.Graphics;
+  private heroOwnMaskGfx?: Phaser.GameObjects.Graphics;
 
   private camTarget!: Phaser.GameObjects.Rectangle;
 
@@ -459,12 +475,44 @@ export class GameScene extends Phaser.Scene {
     this.trailGfx = this.add.graphics().setDepth(DEPTH_TRAIL);
     this.unitGfx = this.add.graphics().setDepth(DEPTH_UNIT);
 
-    if (this.textures.exists("ic_player_marker")) {
-      this.heroMarker = this.add
-        .image(this.hero.pos.x, this.hero.pos.y, "ic_player_marker")
+    // Hero highlight + mask (mask gfx lives offscreen as geometry source).
+    this.heroOwnMaskGfx = this.make.graphics({}, false);
+    this.heroHighlightGfx = this.add.graphics().setDepth(DEPTH_UNIT + 0.5);
+    this.heroHighlightGfx.setMask(this.heroOwnMaskGfx.createGeometryMask());
+
+    if (this.textures.exists("triangle")) {
+      const triPx = SPLIT_TRI_HALF * 2.4;
+      const outlineScale = 1.35;
+      const outlineTint = shadeColor(this.heroFill, -0.45);
+
+      this.splitTriOutline = this.add
+        .image(0, 0, "triangle")
+        .setDepth(DEPTH_UNIT + 0.6)
+        .setDisplaySize(triPx * outlineScale, triPx * outlineScale)
+        .setTint(outlineTint)
+        .setVisible(false)
+        .setMask(this.heroOwnMaskGfx.createGeometryMask());
+
+      this.splitTriSprite = this.add
+        .image(0, 0, "triangle")
         .setDepth(DEPTH_UNIT + 1)
-        .setDisplaySize(HERO_RADIUS_PX * 1.6, HERO_RADIUS_PX * 1.6)
-        .setTint(PALETTE.ui.text)
+        .setDisplaySize(triPx, triPx)
+        .setTint(this.heroFill)
+        .setVisible(false);
+
+      this.ghostOutline = this.add
+        .image(0, 0, "triangle")
+        .setDepth(DEPTH_UNIT + 0.6)
+        .setDisplaySize(triPx * 1.05 * outlineScale, triPx * 1.05 * outlineScale)
+        .setTint(outlineTint)
+        .setVisible(false)
+        .setMask(this.heroOwnMaskGfx.createGeometryMask());
+
+      this.ghostSprite = this.add
+        .image(0, 0, "triangle")
+        .setDepth(DEPTH_UNIT + 1)
+        .setDisplaySize(triPx * 1.05, triPx * 1.05)
+        .setTint(this.heroFill)
         .setVisible(false);
     }
 
@@ -856,6 +904,21 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
+
+    // Rebuild hero-territory geometry mask: simple per-cell fill of hero cells.
+    const maskGfx = this.heroOwnMaskGfx;
+    if (maskGfx) {
+      maskGfx.clear();
+      const heroEntry = byOwner.get(this.hero.id);
+      if (heroEntry) {
+        maskGfx.fillStyle(0xffffff, 1);
+        for (const p of heroEntry.cells) {
+          const cx = p % cols;
+          const cy = Math.floor(p / cols);
+          maskGfx.fillRect(cx * cellPx, cy * cellPx, cellPx, cellPx);
+        }
+      }
+    }
   }
 
   private renderTrails(): void {
@@ -881,7 +944,7 @@ export class GameScene extends Phaser.Scene {
           gfx,
           ghost.posHistory,
           RENDER.trail.ghostLineWidth,
-          PALETTE.ghost.trail,
+          this.heroTrail,
           RENDER.trail.ghostAlpha,
         );
       }
@@ -949,88 +1012,106 @@ export class GameScene extends Phaser.Scene {
       gfx.fillCircle(bot.pos.x, bot.pos.y, BOT_RADIUS_PX);
     }
 
-    const ghost = this.ghostSys.getActive();
-    if (ghost && ghost.alive) {
-      gfx.fillStyle(PALETTE.ghost.fill, PALETTE.ghost.glow * 0.4);
-      gfx.fillCircle(ghost.pos.x, ghost.pos.y, GHOST_RADIUS_PX * 2.5);
-      gfx.fillStyle(PALETTE.ghost.fill, 1);
-      gfx.fillCircle(ghost.pos.x, ghost.pos.y, GHOST_RADIUS_PX);
-    }
-
     if (this.hero.alive) {
-      this.drawHeroSplitState(gfx, heroX, heroY);
-
       gfx.fillStyle(this.heroFill, PALETTE.hero.glow * 0.4);
       gfx.fillCircle(heroX, heroY, HERO_RADIUS_PX * 2.5);
       gfx.fillStyle(this.heroFill, 1);
       gfx.fillCircle(heroX, heroY, HERO_RADIUS_PX);
     }
 
-    if (this.heroMarker) {
-      this.heroMarker.setVisible(this.hero.alive);
+    // Hero highlight ring (geometry-masked to own territory).
+    const hl = this.heroHighlightGfx;
+    if (hl) {
+      hl.clear();
       if (this.hero.alive) {
-        this.heroMarker.setPosition(heroX, heroY);
-        this.heroMarker.setRotation(this.hero.heading - Math.PI / 2);
+        const outline = shadeColor(this.heroFill, -0.45);
+        hl.lineStyle(2, outline, 0.85);
+        hl.strokeCircle(heroX, heroY, HERO_RADIUS_PX);
       }
     }
+
+    this.updateTriangleSprites(heroX, heroY);
   }
 
-  private drawHeroSplitState(
-    gfx: Phaser.GameObjects.Graphics,
-    x: number,
-    y: number,
-  ): void {
+  /**
+   * Drives triangle sprites: flying ghost + loaded/regrowing arrow on hero.
+   * Outline twins behind the main sprites are masked to hero territory so a
+   * darker rim peeks out only over own land.
+   */
+  private updateTriangleSprites(heroX: number, heroY: number): void {
+    const triBase = SPLIT_TRI_HALF * 2.4;
+    const outlineScale = 1.35;
+    const heroAlive = this.hero.alive;
+    const ghost = this.ghostSys.getActive();
+    const ghostFlying = ghost !== null && ghost.alive;
     const now = this.time.now;
-    const ghostColor = PALETTE.ghost.fill;
-    const baseR = HERO_RADIUS_PX * 1.85;
-    const ghostActive = this.ghostSys.isActive();
-    const ready = !ghostActive && this.ghostSys.canSplit(now);
 
-    if (ghostActive) {
-      const tau = Math.PI * 2;
-      const spin = (now / 600) % tau;
-      const arc = Math.PI / 3;
-      gfx.lineStyle(2, ghostColor, 0.7);
-      this.strokeArc(gfx, x, y, baseR, spin, spin + arc);
-      this.strokeArc(gfx, x, y, baseR, spin + Math.PI, spin + Math.PI + arc);
-      return;
+    if (this.ghostSprite) {
+      if (ghostFlying) {
+        const g = ghost!;
+        const rot = g.heading + Math.PI / 2;
+        this.ghostSprite.setVisible(true);
+        this.ghostSprite.setPosition(g.pos.x, g.pos.y);
+        this.ghostSprite.setRotation(rot);
+        this.ghostSprite.setTint(this.heroFill);
+        this.ghostSprite.setAlpha(1);
+
+        if (this.ghostOutline) {
+          const sz = triBase * 1.05 * outlineScale;
+          this.ghostOutline.setVisible(true);
+          this.ghostOutline.setPosition(g.pos.x, g.pos.y);
+          this.ghostOutline.setRotation(rot);
+          this.ghostOutline.setDisplaySize(sz, sz);
+          this.ghostOutline.setAlpha(1);
+        }
+      } else {
+        this.ghostSprite.setVisible(false);
+        this.ghostOutline?.setVisible(false);
+      }
     }
 
-    if (ready) {
-      const pulse = 0.5 + 0.5 * Math.sin(now / 220);
-      const r = baseR + pulse * 1.6;
-      gfx.lineStyle(2.2, ghostColor, 0.55 + pulse * 0.35);
-      gfx.strokeCircle(x, y, r);
+    if (this.splitTriSprite) {
+      const hide = (): void => {
+        this.splitTriSprite?.setVisible(false);
+        this.splitTriOutline?.setVisible(false);
+      };
+      if (!heroAlive || ghostFlying) { hide(); return; }
+      const ratio = Phaser.Math.Clamp(this.ghostSys.getCooldownRatio(now), 0, 1);
+      if (ratio <= 0.01) { hide(); return; }
 
-      const ang = (now / 700) % (Math.PI * 2);
-      const sx = x + Math.cos(ang) * baseR;
-      const sy = y + Math.sin(ang) * baseR;
-      gfx.fillStyle(ghostColor, 0.85);
-      gfx.fillCircle(sx, sy, 2.4);
-      return;
+      const grow = 1 - (1 - ratio) * (1 - ratio);
+      const offset =
+        HERO_RADIUS_PX +
+        SPLIT_TRI_GAP_MIN +
+        (SPLIT_TRI_GAP_MAX - SPLIT_TRI_GAP_MIN) * grow;
+
+      const cx = heroX + Math.cos(this.hero.heading) * offset;
+      const cy = heroY + Math.sin(this.hero.heading) * offset;
+
+      const sizeFactor = 0.35 + 0.65 * grow;
+      const alpha = 0.35 + 0.65 * grow;
+      let pulseScale = 1;
+      if (ratio >= 1) pulseScale = 1 + 0.06 * Math.sin(now / 180);
+
+      const px = triBase * sizeFactor * pulseScale;
+      const rot = this.hero.heading + Math.PI / 2;
+
+      this.splitTriSprite.setVisible(true);
+      this.splitTriSprite.setPosition(cx, cy);
+      this.splitTriSprite.setRotation(rot);
+      this.splitTriSprite.setDisplaySize(px, px);
+      this.splitTriSprite.setAlpha(alpha);
+      this.splitTriSprite.setTint(this.heroFill);
+
+      if (this.splitTriOutline) {
+        const oSz = px * outlineScale;
+        this.splitTriOutline.setVisible(true);
+        this.splitTriOutline.setPosition(cx, cy);
+        this.splitTriOutline.setRotation(rot);
+        this.splitTriOutline.setDisplaySize(oSz, oSz);
+        this.splitTriOutline.setAlpha(alpha);
+      }
     }
-
-    const ratio = this.ghostSys.getCooldownRatio(now);
-    if (ratio <= 0) return;
-    const start = -Math.PI / 2;
-    const end = start + Math.PI * 2 * ratio;
-    gfx.lineStyle(1.8, ghostColor, 0.35);
-    gfx.strokeCircle(x, y, baseR);
-    gfx.lineStyle(2, ghostColor, 0.75);
-    this.strokeArc(gfx, x, y, baseR, start, end);
-  }
-
-  private strokeArc(
-    gfx: Phaser.GameObjects.Graphics,
-    x: number,
-    y: number,
-    r: number,
-    startRad: number,
-    endRad: number,
-  ): void {
-    gfx.beginPath();
-    gfx.arc(x, y, r, startRad, endRad, false);
-    gfx.strokePath();
   }
 
   // ---------------------------------------------------------------------------

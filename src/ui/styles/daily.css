@@ -1,0 +1,113 @@
+@import './vars.css';
+
+/* ── Daily reward modal ───────────────────────────────────── */
+.daily-modal {
+  width: min(92vw, 380px);
+  text-align: center;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: clamp(32px, 5vh, 52px) clamp(28px, 4.5vw, 44px);
+}
+
+/* accent blob top-right */
+.daily-modal::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 60px;
+  height: 60px;
+  background: var(--mint);
+  border-radius: 50%;
+  border: var(--border-sticker);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ── Gift icon — sticker badge ────────────────────────────── */
+.daily-modal__icon {
+  font-size: clamp(56px, 9vw, 76px);
+  color: var(--text);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--yellow);
+  border: var(--border-sticker);
+  border-radius: 50%;
+  width: clamp(80px, 12vw, 104px);
+  height: clamp(80px, 12vw, 104px);
+  box-shadow: var(--shadow-sticker-lg);
+  margin: clamp(4px, 1vh, 8px) auto clamp(10px, 1.8vh, 18px);
+  /* slight tilt */
+  transform: rotate(-3deg);
+  animation: daily-bounce 1.4s ease-in-out infinite;
+}
+@keyframes daily-bounce {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50%       { transform: translateY(-10px) rotate(2deg); }
+}
+
+/* ── Amount ───────────────────────────────────────────────── */
+.daily-modal__amount {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(16px, 2.2vw, 20px);
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: clamp(6px, 1vh, 10px);
+}
+
+/* ── Countdown ────────────────────────────────────────────── */
+.daily-modal__countdown {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(13px, 1.6vw, 15px);
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  margin-top: 6px;
+  min-height: 1.5em;
+}
+
+/* ── Claim button — dominant CTA ─────────────────────────── */
+.daily-modal__claim {
+  min-width: clamp(160px, 32vw, 240px);
+  height: clamp(50px, 7vh, 64px);
+  font-size: clamp(15px, 2vw, 18px);
+  font-weight: 800;
+  margin-top: clamp(14px, 2vh, 22px);
+  background: var(--peach);
+  box-shadow: var(--shadow-sticker-lg);
+}
+.daily-modal__claim:hover {
+  background: var(--peach-dark);
+}
+.daily-modal__claim:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .daily-modal {
+    padding: 28px 20px;
+  }
+  .daily-modal__claim {
+    width: 100%;
+    min-width: unset;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  .daily-modal__icon {
+    box-shadow: 3px 3px 0 var(--ink);
+    transform: none;
+  }
+  @keyframes daily-bounce {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-8px); }
+  }
+}

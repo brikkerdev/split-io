@@ -50,11 +50,17 @@ export class JuiceSystem {
     }, durationMs) as unknown as number;
   }
 
-  private playSfx(key: string, volume = 0.7): void {
+  /**
+   * Play a sound with random pitch variation to avoid ear fatigue from repeats.
+   * `detuneCents` randomises ±N cents (100 = 1 semitone).
+   * `volumeJitter` randomises ±N (e.g. 0.05 = ±5%).
+   */
+  private playSfx(key: string, volume = 0.7, detuneCents = 150, volumeJitter = 0.08): void {
     try {
-      if (this.scene.cache.audio.exists(key)) {
-        this.scene.sound.play(key, { volume });
-      }
+      if (!this.scene.cache.audio.exists(key)) return;
+      const detune = (Math.random() * 2 - 1) * detuneCents;
+      const v = Phaser.Math.Clamp(volume + (Math.random() * 2 - 1) * volumeJitter, 0, 1);
+      this.scene.sound.play(key, { volume: v, detune });
     } catch { /* silent */ }
   }
 
@@ -93,7 +99,8 @@ export class JuiceSystem {
     ev.on(GameEvents.TerritoryCaptured, (payload: TerritoryCapturedPayload) => {
       // Only react to hero captures — bots never trigger visual juice.
       if (this.heroId === 0 || payload.ownerId !== this.heroId) return;
-      this.playSfx(AUDIO.sfx.capture, 0.55);
+      // Capture fires often — wider pitch range keeps it satisfying.
+      this.playSfx(AUDIO.sfx.capture, 0.55, 350, 0.1);
       this.flash(JUICE.capture.flashColor, JUICE.capture.flashDurationMs);
       const nowMs = this.scene.time.now;
       if (nowMs - this.lastShakeMs >= RENDER.shakeThrottleMs) {
@@ -115,7 +122,7 @@ export class JuiceSystem {
       if (payload.victim !== this.heroId && payload.killer !== this.heroId) return;
       // Player dies → handled by PlayerDied below. Player kills enemy → small flash only.
       if (payload.killer === this.heroId && payload.victim !== this.heroId) {
-        this.playSfx(AUDIO.sfx.victory, 0.5);
+        this.playSfx(AUDIO.sfx.victory, 0.5, 250, 0.08);
         this.flash(JUICE.capture.flashColor, JUICE.capture.flashDurationMs);
       }
     });

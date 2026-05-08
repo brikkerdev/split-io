@@ -1,0 +1,75 @@
+@import './vars.css';
+
+@keyframes pop-in {
+  from { transform: scale(0.9); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+#pause-screen {
+  animation: fade-in 160ms ease-out;
+  background: var(--overlay-dim);
+}
+
+#pause-screen .pause-inner {
+  animation: pop-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* accent blob behind the panel */
+#pause-screen .pause-inner {
+  position: relative;
+}
+#pause-screen .pause-inner::before {
+  content: '';
+  position: absolute;
+  top: -18px;
+  right: -18px;
+  width: 80px;
+  height: 80px;
+  background: var(--yellow);
+  border-radius: 50%;
+  border: var(--border-sticker);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* pause title gets a coloured underline stripe */
+.pause-title {
+  position: relative;
+  display: inline-block;
+}
+.pause-title::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 0; right: 0;
+  height: 6px;
+  background: var(--lavender);
+  border-radius: 4px;
+  border: 1.5px solid var(--ink);
+}
+
+/* resume is the primary CTA */
+.pause-btn:first-of-type {
+  background: var(--mint);
+}
+.pause-btn:first-of-type:hover {
+  background: var(--mint-dark);
+}
+
+@media (max-width: 640px) {
+  .pause-inner {
+    min-width: min(80vw, 280px);
+    padding: 32px 24px;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  .pause-btn {
+    min-height: 52px;
+    font-size: 16px;
+  }
+}

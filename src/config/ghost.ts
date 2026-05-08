@@ -8,6 +8,7 @@ export const GHOST = {
   homingTurnRateRadPerSec: 4,
   inOwnHomeMaxSec: 0.5,
 
+  speedMult: 1.6,
   fallbackSpeedMult: 1.1,
   homingDelayBonusMaxSec: 6,
   homingDelayUpgradeStepSec: 1,

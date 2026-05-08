@@ -1,0 +1,164 @@
+@import './vars.css';
+
+/* ── Leaderboard modal body ───────────────────────────────── */
+.lb-body {
+  text-align: left !important;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+}
+
+/* ── List ─────────────────────────────────────────────────── */
+.lb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Row — sticker card ───────────────────────────────────── */
+.lb-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: clamp(10px, 1.4vh, 14px) 12px;
+  border-radius: 12px;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(13px, 1.6vw, 15px);
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+  border: var(--border-sticker);
+  box-shadow: var(--shadow-sticker);
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out;
+}
+.lb-row:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-sticker-hover);
+}
+
+.lb-row--you {
+  background: var(--mint);
+  font-weight: 800;
+}
+.lb-row--you:hover {
+  background: var(--mint);
+}
+
+/* Top 3 rank accents */
+.lb-list li:nth-child(1) .lb-row { background: var(--yellow); }
+.lb-list li:nth-child(2) .lb-row { background: var(--bg); }
+.lb-list li:nth-child(3) .lb-row { background: var(--peach); }
+
+/* ── Cells ────────────────────────────────────────────────── */
+.lb-rank {
+  font-size: clamp(12px, 1.4vw, 14px);
+  font-weight: 800;
+  color: var(--text);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  background: var(--panel-bg);
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: 2px 2px 0 var(--ink);
+  padding: 2px 5px;
+  min-width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lb-row--you .lb-rank {
+  background: var(--panel-bg);
+}
+
+.lb-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  font-weight: 700;
+}
+.lb-score {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-size: clamp(13px, 1.6vw, 15px);
+  white-space: nowrap;
+}
+
+/* ── Separator ────────────────────────────────────────────── */
+.lb-separator {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  padding: 2px 0;
+  font-weight: 700;
+}
+
+.lb-list--own {
+  margin-top: 0;
+}
+
+/* ── Loading spinner ──────────────────────────────────────── */
+.lb-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(13px, 1.6vw, 15px);
+  color: var(--text-muted);
+  gap: 10px;
+  font-weight: 600;
+}
+.lb-spinner::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid var(--ink);
+  border-top-color: var(--mint-dark);
+  animation: lb-spin 600ms linear infinite;
+  flex-shrink: 0;
+}
+@keyframes lb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Error / empty ────────────────────────────────────────── */
+.lb-error,
+.lb-empty {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(13px, 1.6vw, 15px);
+  color: var(--text-muted);
+  text-align: center;
+  padding: 24px 0 16px;
+  font-weight: 600;
+}
+.lb-error {
+  color: var(--danger);
+}
+.lb-body .btn {
+  align-self: center;
+  padding: 10px 28px;
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .lb-row {
+    gap: 8px;
+    padding: 10px 8px;
+    font-size: 14px;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  .lb-rank {
+    box-shadow: 1px 1px 0 var(--ink);
+  }
+}

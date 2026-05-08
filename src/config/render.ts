@@ -30,10 +30,24 @@ export const RENDER = {
     fillInset: 0,
   },
 
-  // Boundary stroke for territory polygon
+  // Boundary stroke for territory polygon (marching-squares smooth contour)
   contour: {
     lineWidth: 2,
     alpha: 0.95,
+    /** Chaikin smoothing iterations (0 = no smoothing). */
+    smoothIterations: 2,
+    /** Drop-shadow offset in px for territory fill. */
+    shadowOffsetPx: 5,
+    /** Drop-shadow alpha. */
+    shadowAlpha: 0.10,
+    /** Inner edge highlight: lighter shade alpha. */
+    innerHighlightAlpha: 0.45,
+    /** Inner edge highlight line width in px. */
+    innerHighlightWidth: 3,
+    /** Lighter amount for inner highlight (0..1). */
+    innerHighlightAmount: 0.28,
+    /** Darker amount for outer stroke (-1..0). */
+    outerStrokeDarken: -0.22,
   },
 
   // Camera

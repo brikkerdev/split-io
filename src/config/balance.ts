@@ -39,6 +39,9 @@ export const BALANCE = {
   botMaxTrailCells: 30,
   /** Steering turn rate for bots (radians per second). */
   botTurnRateRadPerSec: 3.5,
+
+  /** Number of bots in demo/background mode (menu backdrop). */
+  botCountDemoMode: 12,
 } as const;
 
 export type Balance = typeof BALANCE;

@@ -1,0 +1,153 @@
+@import './vars.css';
+
+/* ── Settings modal ───────────────────────────────────────── */
+.settings-modal {
+  width: min(92vw, 460px);
+}
+
+.settings-body {
+  text-align: left !important;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Row ──────────────────────────────────────────────────── */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: clamp(12px, 1.8vh, 18px) 0;
+  border-bottom: 1.5px solid rgba(42,42,46,0.07);
+}
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+/* ── Label ────────────────────────────────────────────────── */
+.settings-label {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(13px, 1.6vw, 15px);
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+  min-width: 80px;
+  cursor: default;
+}
+
+/* ── Slider ───────────────────────────────────────────────── */
+.settings-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.settings-slider {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(42,42,46,0.1);
+  border: 1.5px solid rgba(42,42,46,0.18);
+  outline: none;
+  cursor: pointer;
+  accent-color: var(--mint-dark);
+}
+.settings-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(42,42,46,0.1);
+}
+.settings-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--mint);
+  border: 2.5px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
+  margin-top: -8px;
+  transition: transform 80ms ease-out;
+}
+.settings-slider::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+}
+.settings-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--mint);
+  border: 2.5px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
+}
+.settings-value {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(12px, 1.4vw, 14px);
+  font-weight: 700;
+  color: var(--text-dim);
+  min-width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Radio group — sticker pills ──────────────────────────── */
+.settings-radio-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.settings-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(12px, 1.4vw, 14px);
+  font-weight: 700;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  border: var(--border-sticker);
+  background: var(--bg);
+  box-shadow: 2px 2px 0 var(--ink);
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out;
+  user-select: none;
+}
+.settings-radio-label:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.settings-radio-label input[type='radio'] {
+  display: none;
+}
+.settings-radio-label:has(input:checked) {
+  background: var(--mint);
+  color: var(--text);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .settings-modal {
+    padding: 18px;
+  }
+  .settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .settings-slider-wrap {
+    width: 100%;
+  }
+  .settings-radio-group {
+    justify-content: flex-start;
+  }
+}

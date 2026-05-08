@@ -1,99 +1,132 @@
 @import './vars.css';
 
+@keyframes pop-in {
+  from { transform: scale(0.88); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
 /* ── Game Over screen ─────────────────────────────────────── */
 #gameover-screen {
   background: transparent;
+  background-image:
+    linear-gradient(to bottom,
+      rgba(247,244,238,0.78) 0%,
+      rgba(247,244,238,0.50) 50%,
+      rgba(247,244,238,0.78) 100%
+    );
 }
 
 .gameover-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(14px, 2vh, 24px);
+  gap: clamp(16px, 2.5vh, 28px);
   padding: var(--safe);
   width: 100%;
-  max-width: 640px;
+  max-width: 600px;
 }
 
 /* ── Title ────────────────────────────────────────────────── */
 .gameover-title {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(28px, 4.5vw, 48px);
+  font-size: clamp(30px, 5vw, 52px);
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--text);
   text-align: center;
+  animation: pop-in 250ms cubic-bezier(0.34,1.56,0.64,1) both;
 }
 
-/* ── Score ────────────────────────────────────────────────── */
+/* ── Score hero section ───────────────────────────────────── */
 .gameover-score-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  animation: pop-in 280ms 40ms cubic-bezier(0.34,1.56,0.64,1) both;
 }
+
+/* Big number — visual anchor */
 .gameover-score-value {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(56px, 9vw, 96px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: clamp(64px, 10.5vw, 108px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
   line-height: 1;
   color: var(--text);
+  /* give it a sticker outline feel */
+  text-shadow:
+    3px  3px 0 rgba(42,42,46,0.12),
+    -1px -1px 0 rgba(42,42,46,0.05);
 }
 .gameover-score-value.new-best {
-  color: #b07d10;
+  color: #9a6400;
 }
+
+/* NEW BEST — tilted sticker badge */
 .gameover-new-best-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(12px, 1.6vw, 15px);
-  font-weight: 700;
-  color: #b07d10;
+  font-size: clamp(11px, 1.5vw, 14px);
+  font-weight: 800;
+  color: var(--text);
   background: var(--yellow);
-  padding: 4px 14px;
-  border-radius: 999px;
-  letter-spacing: 0.04em;
+  padding: 5px 16px;
+  border-radius: var(--radius-pill);
+  border: var(--border-sticker);
+  box-shadow: var(--shadow-sticker);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: rotate(2.5deg);
 }
 
-/* ── Breakdown panel ──────────────────────────────────────── */
+/* ── Breakdown card ───────────────────────────────────────── */
 .gameover-breakdown {
   width: 100%;
-  padding: clamp(16px, 2.5vh, 28px) clamp(20px, 3.5vw, 40px);
+  padding: clamp(18px, 2.8vh, 32px) clamp(22px, 4vw, 44px);
   box-sizing: border-box;
   border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   gap: 0;
+  /* slightly offset to add asymmetry */
+  margin-left: -6px;
+  animation: slide-up 300ms 80ms ease-out both;
 }
 .breakdown-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: clamp(7px, 1.1vh, 12px) 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: clamp(8px, 1.2vh, 14px) 0;
+  border-bottom: 1.5px solid rgba(42,42,46,0.08);
   font-size: clamp(13px, 1.7vw, 16px);
 }
 .breakdown-row:last-child {
   border-bottom: none;
 }
 .breakdown-row.total-row {
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 2px solid rgba(42,42,46,0.15);
   margin-top: 4px;
-  padding-top: clamp(10px, 1.5vh, 16px);
+  padding-top: clamp(12px, 1.8vh, 18px);
 }
 .breakdown-label {
   color: var(--text-dim);
-  font-weight: 500;
+  font-weight: 600;
 }
 .breakdown-value {
-  font-weight: 700;
-  font-size: clamp(12px, 1.6vw, 15px);
+  font-weight: 800;
+  font-size: clamp(13px, 1.7vw, 16px);
+  font-variant-numeric: tabular-nums;
 }
-.breakdown-value.cyan  { color: #3a9e7a; }
-.breakdown-value.green { color: #4aab7a; }
-.breakdown-value.amber { color: #b07d10; }
+.breakdown-value.cyan  { color: #2e8c70; }
+.breakdown-value.green { color: #3a9e7a; }
+.breakdown-value.amber { color: #9a6400; }
 .breakdown-value.red   { color: var(--danger); }
 .breakdown-value.dim   { color: var(--text-muted); }
 .total-row .breakdown-label {
@@ -103,15 +136,15 @@
 }
 .total-row .breakdown-value {
   color: var(--text);
-  font-size: clamp(18px, 2.6vw, 24px);
-  font-weight: 800;
+  font-size: clamp(20px, 2.8vw, 28px);
+  font-weight: 900;
 }
 
-/* ── Rank ─────────────────────────────────────────────────── */
+/* ── Rank pill ────────────────────────────────────────────── */
 .gameover-rank {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(13px, 1.8vw, 17px);
-  font-weight: 500;
+  font-size: clamp(13px, 1.8vw, 16px);
+  font-weight: 700;
   color: var(--text-muted);
   min-height: 1.4em;
   text-align: center;
@@ -121,7 +154,12 @@
   gap: 6px;
 }
 .gameover-rank.ranked {
-  color: var(--text-dim);
+  background: var(--lavender);
+  border: var(--border-sticker);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sticker);
+  padding: 5px 16px;
+  color: var(--text);
 }
 
 /* ── Buttons ──────────────────────────────────────────────── */
@@ -129,20 +167,80 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
+  animation: slide-up 320ms 120ms ease-out both;
 }
 .gameover-buttons .btn {
   width: 100%;
-  height: clamp(48px, 6.5vh, 62px);
-  font-size: clamp(13px, 1.8vw, 17px);
+  height: clamp(50px, 6.8vh, 66px);
+  font-size: clamp(14px, 1.8vw, 18px);
 }
+/* Continue (rewarded) is the dominant CTA: peach/yellow accent */
+.btn-continue {
+  background: var(--peach);
+  border-color: var(--ink);
+  font-size: clamp(16px, 2.2vw, 20px) !important;
+  height: clamp(56px, 7.5vh, 72px) !important;
+  font-weight: 800;
+  box-shadow: var(--shadow-sticker-lg) !important;
+}
+.btn-continue:hover {
+  background: var(--peach-dark);
+}
+
 .gameover-buttons .btn-row {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
 }
 .gameover-buttons .btn-row .btn {
   flex: 1;
+}
+/* restart: mint, menu: lavender */
+.gameover-buttons .btn-row .btn:first-child {
+  background: var(--mint);
+}
+.gameover-buttons .btn-row .btn:first-child:hover {
+  background: var(--mint-dark);
+}
+.gameover-buttons .btn-row .btn:last-child {
+  background: var(--lavender);
+}
+.gameover-buttons .btn-row .btn:last-child:hover {
+  background: var(--lavender-dark);
+}
+
+/* Achievement toast */
+.achievement-toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--yellow);
+  border: var(--border-sticker);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sticker);
+  padding: 8px 20px;
+  font-weight: 700;
+  font-size: clamp(12px, 1.5vw, 15px);
+  color: var(--text);
+  white-space: nowrap;
+  animation: pop-in 220ms cubic-bezier(0.34,1.56,0.64,1) both;
+  pointer-events: none;
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .gameover-breakdown {
+    margin-left: 0;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  .gameover-new-best-badge {
+    transform: none;
+  }
+  .gameover-score-value {
+    font-size: clamp(56px, 18vw, 88px);
+  }
 }

@@ -1,29 +1,44 @@
-/* Pastel minimalism palette — mirrors src/config/palette.ts */
+/* Paper-cut / Sticker palette */
 :root {
   --bg:           #f7f4ee;
   --mint:         #a8e0c5;
+  --mint-dark:    #7ecaa8;
   --peach:        #f5c4a3;
+  --peach-dark:   #e8a87c;
   --lavender:     #c9b8e8;
+  --lavender-dark:#a997d0;
   --lilac:        #e3a8c4;
+  --lilac-dark:   #cd84a8;
   --yellow:       #f0d97f;
+  --yellow-dark:  #d4b84a;
   --danger:       #e8856a;
   --success:      #a8e0c5;
   --warning:      #f0d97f;
   --text:         #2a2a2e;
-  --text-dim:     #6b6b72;
+  --text-dim:     #5a5a60;
   --text-muted:   #9a9aa5;
   --panel-bg:     #ffffff;
   --panel-border: rgba(0, 0, 0, 0.06);
   --btn-bg:       #ffffff;
   --btn-hover:    #f5f3ef;
   --btn-press:    #edeae4;
-  --overlay-dim:  rgba(42, 42, 46, 0.45);
+  --overlay-dim:  rgba(42, 42, 46, 0.55);
 
+  /* Sticker shadow system */
+  --ink:                  #2a2a2e;
+  --border-sticker:       2.5px solid var(--ink);
+  --shadow-sticker:       4px 4px 0 var(--ink);
+  --shadow-sticker-lg:    5px 5px 0 var(--ink);
+  --shadow-sticker-hover: 6px 6px 0 var(--ink);
+  --shadow-sticker-press: 2px 2px 0 var(--ink);
+
+  /* Legacy soft shadows kept for non-interactive surfaces */
   --shadow-card:  0 4px 12px rgba(0, 0, 0, 0.06);
   --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.08);
 
   --safe:       clamp(16px, 2.5vw, 32px);
-  --radius:     14px;
-  --radius-btn: 10px;
-  --transition: 140ms ease-out;
+  --radius:     18px;
+  --radius-btn: 12px;
+  --radius-pill:999px;
+  --transition: 120ms ease-out;
 }

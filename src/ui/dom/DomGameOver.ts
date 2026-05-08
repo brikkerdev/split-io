@@ -170,7 +170,7 @@ export class DomGameOver {
 
     if (canContinue) {
       const continueBtn = document.createElement("button");
-      continueBtn.className = "btn btn-primary";
+      continueBtn.className = "btn btn-continue";
       continueBtn.innerHTML = `<i class="ph ph-play-circle"></i> ${t("gameover_continue")}`;
       continueBtn.addEventListener("click", () => void opts.onContinue());
       wrap.appendChild(continueBtn);

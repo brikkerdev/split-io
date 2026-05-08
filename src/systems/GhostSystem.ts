@@ -58,7 +58,7 @@ export class GhostSystem {
 
     const preflySec = GHOST.preflySec + hero.homingDelayBonusSec;
     const ghost = new Ghost(this.nextId++, hero.id);
-    ghost.spawn(hero.pos, hero.heading, hero.speedCellsPerSec, preflySec);
+    ghost.spawn(hero.pos, hero.heading, hero.speedCellsPerSec * GHOST.speedMult, preflySec);
 
     this.active = ghost;
     this.trails.ensure(ghost.id);

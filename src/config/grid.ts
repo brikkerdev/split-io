@@ -5,7 +5,7 @@ export const GRID = {
   rows: 128,
   cellPx: 16,
   bgLineEvery: 4,
-  bgLineAlpha: 0.05,
+  bgLineAlpha: 0.14,
   startTerritoryRadiusCells: 3,
 } as const;
 

@@ -55,12 +55,14 @@ export class DomMenu {
   // ── Private builders ──────────────────────────────────────
 
   private build(): void {
+    // Daily badge is absolute-positioned directly in root (not inner).
+    this.root.appendChild(this.buildDailyBtn());
+
     const inner = document.createElement("div");
     inner.className = "menu-inner";
 
     inner.appendChild(this.buildLogo());
     inner.appendChild(this.buildPlayBtn());
-    inner.appendChild(this.buildDailyBtn());
     inner.appendChild(this.buildSecondaryRow());
 
     this.root.appendChild(inner);
@@ -90,7 +92,7 @@ export class DomMenu {
   private buildPlayBtn(): HTMLButtonElement {
     const btn = document.createElement("button");
     btn.className = "btn btn-primary menu-play-btn";
-    btn.textContent = t("menu_play");
+    btn.innerHTML = `<i class="ph ph-play-fill"></i> ${t("menu_play")}`;
     btn.addEventListener("click", () => {
       this.playClick();
       this.onPlay();
@@ -118,10 +120,12 @@ export class DomMenu {
     btn.appendChild(icon);
 
     const label = document.createElement("span");
+    label.className = "menu-daily-btn__label";
     label.textContent = t("menu_daily_reward");
     btn.appendChild(label);
 
     btn.addEventListener("click", () => this.openDailyRewardModal());
+    btn.addEventListener("touchend", (e) => { e.preventDefault(); this.openDailyRewardModal(); });
     return btn;
   }
 

@@ -1,5 +1,19 @@
 @import './vars.css';
 
+/* ── Keyframes ────────────────────────────────────────────── */
+@keyframes pop-in {
+  from { transform: scale(0.88); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* ── Overlay root ─────────────────────────────────────────── */
 #ui-overlay {
   position: absolute;
@@ -12,7 +26,6 @@
   z-index: 10;
 }
 
-/* Screens fill the overlay but are hidden by default */
 .ui-screen {
   position: absolute;
   inset: 0;
@@ -31,66 +44,70 @@
   pointer-events: auto;
 }
 
-/* ── Panel ────────────────────────────────────────────────── */
+/* ── Panel (soft surface for non-interactive containers) ──── */
 .panel {
   background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
+  border: var(--border-sticker);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-sticker-lg);
 }
 
-/* ── Buttons ──────────────────────────────────────────────── */
+/* ── Sticker button base ──────────────────────────────────── */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-weight: 600;
+  font-weight: 700;
   font-size: clamp(14px, 1.8vw, 17px);
   cursor: pointer;
-  border: 1px solid var(--panel-border);
+  border: var(--border-sticker);
   border-radius: var(--radius-btn);
   background: var(--btn-bg);
   color: var(--text);
-  box-shadow: var(--shadow-card);
-  transition: background var(--transition), box-shadow var(--transition), transform 80ms ease-out;
+  box-shadow: var(--shadow-sticker);
+  transition:
+    background var(--transition),
+    box-shadow 80ms ease-out,
+    transform 80ms ease-out;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   pointer-events: auto;
+  position: relative;
 }
 .btn:hover {
   background: var(--btn-hover);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sticker-hover);
+  transform: translate(-1px, -1px);
 }
 .btn:active {
   background: var(--btn-press);
-  transform: scale(0.97);
-  box-shadow: var(--shadow-card);
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-sticker-press);
 }
 
+/* Primary: mint */
 .btn-primary {
   background: var(--mint);
-  border-color: transparent;
+  border-color: var(--ink);
   color: var(--text);
-  box-shadow: 0 4px 14px rgba(168, 224, 197, 0.45);
 }
 .btn-primary:hover {
-  background: #95d6b5;
-  box-shadow: 0 6px 18px rgba(168, 224, 197, 0.55);
+  background: var(--mint-dark);
 }
 .btn-primary:active {
-  background: #82ccaa;
+  background: var(--mint-dark);
 }
 
+/* Danger/Continue: peach */
 .btn-danger {
   background: var(--peach);
-  border-color: transparent;
+  border-color: var(--ink);
   color: var(--text);
 }
 .btn-danger:hover {
-  background: #f0b48e;
-  box-shadow: 0 6px 16px rgba(245, 196, 163, 0.5);
+  background: var(--peach-dark);
 }
 
 /* ── Modal overlay ────────────────────────────────────────── */
@@ -103,14 +120,16 @@
   justify-content: center;
   pointer-events: auto;
   z-index: 20;
+  animation: fade-in 180ms ease;
 }
 .modal-box {
   position: relative;
-  padding: clamp(24px, 3.5vh, 40px) clamp(24px, 4vw, 48px);
-  width: min(90vw, 420px);
+  padding: clamp(28px, 4vh, 44px) clamp(28px, 4vw, 48px);
+  width: min(90vw, 440px);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  animation: pop-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .modal-title {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
@@ -118,6 +137,21 @@
   font-weight: 800;
   color: var(--text);
   text-align: center;
+}
+/* Title with coloured stripe underline */
+.modal-title-stripe {
+  display: inline-block;
+  position: relative;
+}
+.modal-title-stripe::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0; right: 0;
+  height: 6px;
+  background: var(--yellow);
+  border-radius: 4px;
+  border: 1.5px solid var(--ink);
 }
 .modal-body {
   font-size: clamp(13px, 1.7vw, 16px);
@@ -129,20 +163,36 @@
   flex-direction: column;
   gap: 10px;
 }
+
+/* Close button — sticker pill */
 .modal-close-btn {
   position: absolute;
-  top: 12px;
+  top: 14px;
   right: 14px;
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: var(--text-muted);
+  background: var(--bg);
+  border: var(--border-sticker);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sticker);
+  font-size: 16px;
+  font-weight: 700;
   line-height: 1;
-  padding: 4px 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text);
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out;
+  pointer-events: auto;
 }
 .modal-close-btn:hover {
-  color: var(--text);
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-sticker-hover);
+}
+.modal-close-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-sticker-press);
 }
 
 /* ── Pause screen ─────────────────────────────────────────── */
@@ -154,22 +204,23 @@
   flex-direction: column;
   align-items: center;
   gap: clamp(14px, 2.5vh, 24px);
-  padding: clamp(32px, 5vh, 56px) clamp(32px, 5vw, 64px);
+  padding: clamp(36px, 5.5vh, 60px) clamp(40px, 6vw, 72px);
   background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
+  border: var(--border-sticker);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-sticker-lg);
   min-width: min(80vw, 320px);
 }
 .pause-title {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(26px, 4vw, 42px);
+  font-size: clamp(28px, 4.5vw, 46px);
   font-weight: 800;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 .pause-btn {
   width: 100%;
-  height: clamp(46px, 6vh, 58px);
+  height: clamp(48px, 6.5vh, 62px);
   font-size: clamp(14px, 1.9vw, 17px);
 }
 
@@ -178,26 +229,48 @@
   position: absolute;
   top: var(--safe);
   left: var(--safe);
-  width: clamp(38px, 5vw, 48px);
-  height: clamp(38px, 5vw, 48px);
+  width: clamp(40px, 5.5vw, 52px);
+  height: clamp(40px, 5.5vw, 52px);
   border-radius: 50%;
   background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow-card);
+  border: var(--border-sticker);
+  box-shadow: var(--shadow-sticker);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: clamp(16px, 2.2vw, 22px);
-  color: var(--text-dim);
+  color: var(--text);
   cursor: pointer;
   pointer-events: auto;
-  transition: background var(--transition), transform 80ms ease-out;
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out;
   z-index: 5;
 }
 .hud-pause-btn:hover {
-  background: var(--btn-hover);
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-sticker-hover);
 }
 .hud-pause-btn:active {
-  background: var(--btn-press);
-  transform: scale(0.93);
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-sticker-press);
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .btn {
+    border-width: 2px;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  .btn:hover {
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .btn:active {
+    box-shadow: 1px 1px 0 var(--ink);
+  }
+  .panel {
+    border-width: 2px;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  .modal-close-btn {
+    box-shadow: 3px 3px 0 var(--ink);
+  }
 }

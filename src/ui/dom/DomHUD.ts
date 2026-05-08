@@ -37,9 +37,7 @@ export class DomHUD {
   private splitRingEl!: SVGCircleElement;
   private splitRingWrap!: HTMLElement;
   private splitLabelEl!: HTMLElement;
-  private hintEl!: HTMLElement;
 
-  private hintDismissed = false;
   private gameEvents!: Phaser.Events.EventEmitter;
   private game!: Phaser.Game;
   private heroId = 0; // kept for API compat — leaderboard uses isHero flag from payload
@@ -64,7 +62,6 @@ export class DomHUD {
     this.gameEvents = gameEvents;
     this.gameEvents.on(GameEvents.LeaderboardUpdate, this.onLeaderboard, this);
     this.gameEvents.on(GameEvents.SplitCooldown, this.onSplitCooldown, this);
-    this.gameEvents.once("input:firstmove", this.dismissHint, this);
     this.gameEvents.on(JoystickEvents.Show, this.onJoystickShow, this);
     this.gameEvents.on(JoystickEvents.Move, this.onJoystickMove, this);
     this.gameEvents.on(JoystickEvents.Hide, this.onJoystickHide, this);
@@ -87,7 +84,6 @@ export class DomHUD {
     if (this.gameEvents) {
       this.gameEvents.off(GameEvents.LeaderboardUpdate, this.onLeaderboard, this);
       this.gameEvents.off(GameEvents.SplitCooldown, this.onSplitCooldown, this);
-      this.gameEvents.off("input:firstmove", this.dismissHint, this);
       this.gameEvents.off(JoystickEvents.Show, this.onJoystickShow, this);
       this.gameEvents.off(JoystickEvents.Move, this.onJoystickMove, this);
       this.gameEvents.off(JoystickEvents.Hide, this.onJoystickHide, this);
@@ -97,12 +93,6 @@ export class DomHUD {
   showUpgradeModal(payload: UpgradeOfferPayload, onPick: (id: string) => void): void {
     // Upgrade modal is handled by DomUpgradeModal — emit to game.events so it can respond
     this.game.events.emit("ui:upgrade:offer", payload, onPick);
-  }
-
-  dismissHint(): void {
-    if (this.hintDismissed) return;
-    this.hintDismissed = true;
-    this.hintEl.classList.add("hidden");
   }
 
   // ── Private builders ──────────────────────────────────────
@@ -118,11 +108,6 @@ export class DomHUD {
           <span class="hud-leaderboard__label" data-i18n="hud_leaderboard"></span>
           <ol class="hud-leaderboard__list" id="hud-lb-list"></ol>
         </div>
-      </div>
-
-      <div class="hud-hint" id="hud-hint">
-        <span class="hud-hint__arrow"><i class="ph ph-arrow-up"></i></span>
-        <span class="hud-hint__text" data-i18n="hud_hint_move"></span>
       </div>
 
       <div class="hud-split" id="hud-split">
@@ -154,7 +139,6 @@ export class DomHUD {
     this.splitRingEl = this.root.querySelector("#hud-ring-fill") as unknown as SVGCircleElement;
     this.splitRingWrap = this.root.querySelector("#hud-split-ring") as HTMLElement;
     this.splitLabelEl = this.root.querySelector("#hud-split-label") as HTMLElement;
-    this.hintEl = this.root.querySelector("#hud-hint") as HTMLElement;
     this.stickBase = this.root.querySelector("#joystick-base") as HTMLElement;
     this.stickKnob = this.root.querySelector("#joystick-knob") as HTMLElement;
 

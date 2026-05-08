@@ -16,8 +16,14 @@ export class SaveManager {
       this.cache = { ...defaults };
       return this.cache as T;
     }
-    this.cache = data;
-    return data;
+    const merged = { ...defaults, ...data } as T;
+    if (defaults.settings && typeof defaults.settings === "object") {
+      const dSettings = defaults.settings as Record<string, unknown>;
+      const fSettings = (data.settings as Record<string, unknown> | undefined) ?? {};
+      (merged as Record<string, unknown>).settings = { ...dSettings, ...fSettings };
+    }
+    this.cache = merged;
+    return merged;
   }
 
   get<T extends SaveData>(): T {

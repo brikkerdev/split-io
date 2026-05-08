@@ -1,11 +1,6 @@
 // Audio key registry. Files attached by sound agent later.
 
 export const AUDIO = {
-  music: {
-    menu: "mus_menu",
-    game: "mus_game",
-    gameoverStinger: "mus_stinger",
-  },
   sfx: {
     split: "sfx_split",
     capture: "sfx_capture",
@@ -18,7 +13,6 @@ export const AUDIO = {
     matchStart: "sfx_match_start",
     victory: "sfx_victory",
   },
-  defaultMusicVolume: 0.6,
   defaultSfxVolume: 1.0,
 } as const;
 
