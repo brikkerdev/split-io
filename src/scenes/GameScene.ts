@@ -49,7 +49,8 @@ const GLOW_BOT_COUNT = 5;
 const DEMO_BOT_COUNT = 12;
 const DEMO_FAIRNESS_RESET_SEC = 60;
 const DEMO_FAIRNESS_PCT_LIMIT = 30;
-const SAFE_SPAWN_RADIUS_CELLS = 8;
+/** Demo camera zoom: > fitZoom so arena edges are clipped. */
+const DEMO_ZOOM_FACTOR = 1.45;
 
 type GamePhase = "demo" | "playing" | "gameover";
 
@@ -368,8 +369,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnHero(): void {
-    const center = { cx: Math.floor(GRID.cols / 2), cy: Math.floor(GRID.rows / 2) };
-    const safe = this.findSafeSpawnNear(center, SAFE_SPAWN_RADIUS_CELLS);
+    const safe = this.pickRandomSpawnCell();
     const r = GRID.startTerritoryRadiusCells;
 
     const worldPos = this.grid.cellToWorld(safe);
@@ -385,11 +385,7 @@ export class GameScene extends Phaser.Scene {
         const ncx = safe.cx + dx;
         const ncy = safe.cy + dy;
         if (!this.grid.inBounds(ncx, ncy)) continue;
-        const prevOwner = this.grid.ownerOf(ncx, ncy);
-        if (prevOwner !== 0 && prevOwner !== this.hero.id) {
-          // Take it from the bot — small concession for a clean spawn pocket.
-          this.territorySys.releaseOwner(prevOwner);
-        }
+        if (this.grid.ownerOf(ncx, ncy) !== 0) continue;
         this.grid.setOwner(ncx, ncy, this.hero.id);
         packed.push(ncy * this.grid.cols + ncx);
       }
@@ -400,23 +396,40 @@ export class GameScene extends Phaser.Scene {
     this.territoryDirty = true;
   }
 
-  private findSafeSpawnNear(
-    target: { cx: number; cy: number },
-    maxR: number,
-  ): { cx: number; cy: number } {
-    if (this.grid.ownerOf(target.cx, target.cy) === 0) return target;
-    for (let r = 1; r <= maxR; r++) {
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
-          const ncx = target.cx + dx;
-          const ncy = target.cy + dy;
+  /** Pick a random unowned cell inside the play circle, away from claimed cells. */
+  private pickRandomSpawnCell(): { cx: number; cy: number } {
+    const r = GRID.startTerritoryRadiusCells;
+    const cols = this.grid.cols;
+    const rows = this.grid.rows;
+    const cellPx = this.grid.cellPx;
+    const innerR = MAP.radiusPx - (r + 2) * cellPx;
+
+    for (let attempt = 0; attempt < 64; attempt++) {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = Math.sqrt(Math.random()) * innerR;
+      const wx = MAP.centerX + Math.cos(ang) * rad;
+      const wy = MAP.centerY + Math.sin(ang) * rad;
+      const { cx, cy } = this.grid.worldToCell({ x: wx, y: wy });
+      if (this.grid.ownerOf(cx, cy) !== 0) continue;
+      let ok = true;
+      for (let dy = -r; dy <= r && ok; dy++) {
+        for (let dx = -r; dx <= r && ok; dx++) {
+          const ncx = cx + dx;
+          const ncy = cy + dy;
           if (!this.grid.inBounds(ncx, ncy)) continue;
-          if (this.grid.ownerOf(ncx, ncy) === 0) return { cx: ncx, cy: ncy };
+          const o = this.grid.ownerOf(ncx, ncy);
+          if (o !== 0 && o !== this.hero.id) ok = false;
         }
       }
+      if (ok) return { cx, cy };
     }
-    return target;
+    // Fallback: any unowned cell.
+    for (let cy = 0; cy < rows; cy++) {
+      for (let cx = 0; cx < cols; cx++) {
+        if (this.grid.ownerOf(cx, cy) === 0) return { cx, cy };
+      }
+    }
+    return { cx: Math.floor(cols / 2), cy: Math.floor(rows / 2) };
   }
 
   private spawnDemoBots(): void {
@@ -467,13 +480,15 @@ export class GameScene extends Phaser.Scene {
     const worldH = GRID.rows * GRID.cellPx;
     const cam = this.cameras.main;
     cam.stopFollow();
-    cam.setBounds(0, 0, worldW, worldH);
+    // No bounds in demo: bounds clamp the camera and break centering when
+    // viewport-in-world > world. Demo camera sits free, centered on arena.
+    cam.removeBounds();
     const fitZoom = Math.min(
-      GAME_WIDTH / (MAP.radiusPx * 2 + MAP.borderWidthPx * 4),
-      GAME_HEIGHT / (MAP.radiusPx * 2 + MAP.borderWidthPx * 4),
+      GAME_WIDTH / (MAP.radiusPx * 2),
+      GAME_HEIGHT / (MAP.radiusPx * 2),
     );
-    cam.setZoom(fitZoom);
-    cam.centerOn(MAP.centerX, MAP.centerY);
+    cam.setZoom(fitZoom * DEMO_ZOOM_FACTOR);
+    cam.centerOn(worldW / 2, worldH / 2);
   }
 
   private setupPlayCamera(): void {

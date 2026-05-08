@@ -472,9 +472,11 @@ export class BotAI {
     rows: number,
   ): { cx: number; cy: number } {
     const margin = GRID.startTerritoryRadiusCells + 2;
-    const angle = (index / total) * Math.PI * 2;
-    const rx = Math.floor(cols * 0.4);
-    const ry = Math.floor(rows * 0.4);
+    const baseAngle = (index / total) * Math.PI * 2;
+    const angle = baseAngle + (Math.random() - 0.5) * (Math.PI / total);
+    const radiusFrac = 0.18 + Math.random() * 0.24;
+    const rx = Math.floor(cols * radiusFrac);
+    const ry = Math.floor(rows * radiusFrac);
     const rawCx = Math.round(cols / 2 + Math.cos(angle) * rx);
     const rawCy = Math.round(rows / 2 + Math.sin(angle) * ry);
     return {
