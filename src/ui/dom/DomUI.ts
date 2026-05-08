@@ -3,6 +3,7 @@
  * Owns the #ui-overlay div, mounts/unmounts screens.
  * Called from Phaser scenes via static methods.
  */
+import Phaser from "phaser";
 import { DomHUD } from "./DomHUD";
 import { DomMenu } from "./DomMenu";
 import { DomGameOver } from "./DomGameOver";
@@ -60,7 +61,24 @@ export class DomUI {
     parent.style.position = "relative";
     parent.appendChild(overlay);
 
+    DomUI.syncOverlayToCanvas(game, overlay);
     DomUI.attachSfxDelegation(game, overlay);
+  }
+
+  /** Keep overlay rect aligned with the actual canvas (FIT scale + letterboxing). */
+  private static syncOverlayToCanvas(game: Phaser.Game, overlay: HTMLElement): void {
+    const apply = (): void => {
+      const canvas = game.canvas;
+      if (!canvas) return;
+      overlay.style.position = "absolute";
+      overlay.style.left = `${canvas.offsetLeft}px`;
+      overlay.style.top = `${canvas.offsetTop}px`;
+      overlay.style.width = `${canvas.offsetWidth}px`;
+      overlay.style.height = `${canvas.offsetHeight}px`;
+    };
+    apply();
+    game.scale.on(Phaser.Scale.Events.RESIZE, apply);
+    window.addEventListener("resize", apply);
   }
 
   private static sfxAttached = false;
