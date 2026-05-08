@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 export default defineConfig({
   base: "./",
+  publicDir: "assets",
   resolve: {
     alias: {
       "@": resolve(__dirname, "src"),

@@ -23,7 +23,7 @@ export class PreloadScene extends Phaser.Scene {
       "triangle",
     ];
     for (const key of icons) {
-      this.load.image(key, `assets/images/${key}.png`);
+      this.load.image(key, `images/${key}.png`);
     }
 
     // SFX — ogg primary, m4a Safari fallback. No background music — minimalist .io style.
@@ -41,8 +41,8 @@ export class PreloadScene extends Phaser.Scene {
     ];
     for (const [key, file] of sfx) {
       this.load.audio(key, [
-        `assets/audio/sfx/${file}.ogg`,
-        `assets/audio/sfx/${file}.m4a`,
+        `audio/sfx/${file}.ogg`,
+        `audio/sfx/${file}.m4a`,
       ]);
     }
   }
