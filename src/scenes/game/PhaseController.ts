@@ -74,6 +74,7 @@ export class PhaseController {
     this.continueUsed = false;
     this.deps.adSys.resetRoundContinue();
     this.deps.achievementSys.resetRound();
+    this.deps.scoreSys.reset();
     this.deps.markTerritoryDirty();
 
     yandex.gameplayStart();
@@ -130,6 +131,7 @@ export class PhaseController {
     this.continueUsed = false;
     this.deps.adSys.resetRoundContinue();
     this.deps.achievementSys.resetRound();
+    this.deps.scoreSys.reset();
     this.deps.markTerritoryDirty();
 
     yandex.gameplayStart();
