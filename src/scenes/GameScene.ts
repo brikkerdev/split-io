@@ -55,7 +55,7 @@ const DEMO_BOT_COUNT = 12;
 const DEMO_FAIRNESS_RESET_SEC = 60;
 const DEMO_FAIRNESS_PCT_LIMIT = 30;
 /** Demo camera zoom: > fitZoom so arena edges are clipped. */
-const DEMO_ZOOM_FACTOR = 1.45;
+const DEMO_ZOOM_FACTOR = 2.2;
 
 type GamePhase = "demo" | "playing" | "gameover";
 
@@ -864,122 +864,109 @@ export class GameScene extends Phaser.Scene {
     const cellPx = this.grid.cellPx;
     const cols = this.grid.cols;
     const rows = this.grid.rows;
-    const shadow = RENDER.territory.shadowOffsetPx;
-    const bevel = RENDER.territory.bevelPx;
+    const cfg = RENDER.contour;
 
+    // Collect color per owner.
     const bots = this.botAI.getAll();
-    const byOwner = new Map<number, { color: number; cells: number[] }>();
-
+    const ownerColor = new Map<number, number>();
     for (let cy = 0; cy < rows; cy++) {
       for (let cx = 0; cx < cols; cx++) {
         const owner = this.grid.ownerOf(cx, cy);
-        if (owner === 0) continue;
-        let entry = byOwner.get(owner);
-        if (!entry) {
-          let color: number;
-          if (owner === this.hero.id) {
-            color = this.heroTerritory;
-          } else {
-            const bot = bots.find((b) => b.id === owner);
-            color = bot?.color ?? PALETTE.gridLine;
-          }
-          entry = { color, cells: [] };
-          byOwner.set(owner, entry);
+        if (owner === 0 || ownerColor.has(owner)) continue;
+        let color: number;
+        if (owner === this.hero.id) {
+          color = this.heroTerritory;
+        } else {
+          const bot = bots.find((b) => b.id === owner);
+          color = bot?.color ?? PALETTE.gridLine;
         }
-        entry.cells.push(cy * cols + cx);
+        ownerColor.set(owner, color);
       }
     }
 
-    gfx.fillStyle(0x000000, RENDER.territory.shadowAlpha);
-    for (const [ownerId, { cells }] of byOwner) {
-      for (const p of cells) {
-        const cx = p % cols;
-        const cy = Math.floor(p / cols);
-        const isBoundary =
-          this.grid.ownerOf(cx - 1, cy) !== ownerId ||
-          this.grid.ownerOf(cx + 1, cy) !== ownerId ||
-          this.grid.ownerOf(cx, cy - 1) !== ownerId ||
-          this.grid.ownerOf(cx, cy + 1) !== ownerId;
-        if (!isBoundary) continue;
-        gfx.fillRect(
-          cx * cellPx + shadow,
-          cy * cellPx + shadow,
-          cellPx,
-          cellPx,
-        );
+    // Trace smoothed contours via marching squares + Chaikin.
+    const ownerContours = new Map<number, Vec2[][]>();
+    for (const ownerId of ownerColor.keys()) {
+      ownerContours.set(
+        ownerId,
+        traceContours(this.grid, ownerId, cellPx, cfg.smoothIterations),
+      );
+    }
+
+    const traceShape = (
+      g: Phaser.GameObjects.Graphics,
+      pts: Vec2[],
+      offX = 0,
+      offY = 0,
+    ): void => {
+      if (pts.length < 2) return;
+      g.beginPath();
+      const fp = pts[0] as Vec2;
+      g.moveTo(fp.x + offX, fp.y + offY);
+      for (let i = 1; i < pts.length; i++) {
+        const p = pts[i] as Vec2;
+        g.lineTo(p.x + offX, p.y + offY);
+      }
+      g.closePath();
+    };
+
+    // Pass 1: drop shadow.
+    const shadowOff = cfg.shadowOffsetPx;
+    gfx.fillStyle(0x000000, cfg.shadowAlpha);
+    for (const contours of ownerContours.values()) {
+      for (const poly of contours) {
+        if (poly.length < 3) continue;
+        traceShape(gfx, poly, shadowOff, shadowOff);
+        gfx.fillPath();
       }
     }
 
-    for (const { color, cells } of byOwner.values()) {
+    // Pass 2: main fill.
+    for (const [ownerId, contours] of ownerContours) {
+      const color = ownerColor.get(ownerId) ?? PALETTE.gridLine;
       gfx.fillStyle(color, RENDER.territory.fillAlpha);
-      for (const p of cells) {
-        const cx = p % cols;
-        const cy = Math.floor(p / cols);
-        gfx.fillRect(cx * cellPx, cy * cellPx, cellPx, cellPx);
+      for (const poly of contours) {
+        if (poly.length < 3) continue;
+        traceShape(gfx, poly);
+        gfx.fillPath();
       }
     }
 
-    for (const [ownerId, { color, cells }] of byOwner) {
-      const hi = shadeColor(color, RENDER.territory.bevelHiAmount);
-      const lo = shadeColor(color, RENDER.territory.bevelLoAmount);
-      for (const p of cells) {
-        const cx = p % cols;
-        const cy = Math.floor(p / cols);
-        const x = cx * cellPx;
-        const y = cy * cellPx;
-        if (this.grid.ownerOf(cx, cy - 1) !== ownerId) {
-          gfx.fillStyle(hi, RENDER.territory.bevelAlpha);
-          gfx.fillRect(x, y, cellPx, bevel);
-        }
-        if (this.grid.ownerOf(cx - 1, cy) !== ownerId) {
-          gfx.fillStyle(hi, RENDER.territory.bevelAlpha);
-          gfx.fillRect(x, y, bevel, cellPx);
-        }
-        if (this.grid.ownerOf(cx, cy + 1) !== ownerId) {
-          gfx.fillStyle(lo, RENDER.territory.bevelAlpha);
-          gfx.fillRect(x, y + cellPx - bevel, cellPx, bevel);
-        }
-        if (this.grid.ownerOf(cx + 1, cy) !== ownerId) {
-          gfx.fillStyle(lo, RENDER.territory.bevelAlpha);
-          gfx.fillRect(x + cellPx - bevel, y, bevel, cellPx);
-        }
+    // Pass 3: inner highlight (lighter inset stroke).
+    for (const [ownerId, contours] of ownerContours) {
+      const color = ownerColor.get(ownerId) ?? PALETTE.gridLine;
+      const hiColor = shadeColor(color, cfg.innerHighlightAmount);
+      gfx.lineStyle(cfg.innerHighlightWidth, hiColor, cfg.innerHighlightAlpha);
+      for (const poly of contours) {
+        if (poly.length < 2) continue;
+        traceShape(gfx, poly);
+        gfx.strokePath();
       }
     }
 
-    for (const [ownerId, { color, cells }] of byOwner) {
-      const contourColor = shadeColor(color, 0.3);
-      gfx.lineStyle(RENDER.contour.lineWidth, contourColor, RENDER.contour.alpha);
-      for (const p of cells) {
-        const cx = p % cols;
-        const cy = Math.floor(p / cols);
-        const x = cx * cellPx;
-        const y = cy * cellPx;
-        if (this.grid.ownerOf(cx, cy - 1) !== ownerId) {
-          gfx.lineBetween(x, y, x + cellPx, y);
-        }
-        if (this.grid.ownerOf(cx, cy + 1) !== ownerId) {
-          gfx.lineBetween(x, y + cellPx, x + cellPx, y + cellPx);
-        }
-        if (this.grid.ownerOf(cx - 1, cy) !== ownerId) {
-          gfx.lineBetween(x, y, x, y + cellPx);
-        }
-        if (this.grid.ownerOf(cx + 1, cy) !== ownerId) {
-          gfx.lineBetween(x + cellPx, y, x + cellPx, y + cellPx);
-        }
+    // Pass 4: outer dark stroke.
+    for (const [ownerId, contours] of ownerContours) {
+      const color = ownerColor.get(ownerId) ?? PALETTE.gridLine;
+      const outColor = shadeColor(color, cfg.outerStrokeDarken);
+      gfx.lineStyle(cfg.lineWidth, outColor, cfg.alpha);
+      for (const poly of contours) {
+        if (poly.length < 2) continue;
+        traceShape(gfx, poly);
+        gfx.strokePath();
       }
     }
 
-    // Rebuild hero-territory geometry mask: simple per-cell fill of hero cells.
+    // Rebuild hero-territory geometry mask from hero contours (smooth shape).
     const maskGfx = this.heroOwnMaskGfx;
     if (maskGfx) {
       maskGfx.clear();
-      const heroEntry = byOwner.get(this.hero.id);
-      if (heroEntry) {
+      const heroContours = ownerContours.get(this.hero.id);
+      if (heroContours) {
         maskGfx.fillStyle(0xffffff, 1);
-        for (const p of heroEntry.cells) {
-          const cx = p % cols;
-          const cy = Math.floor(p / cols);
-          maskGfx.fillRect(cx * cellPx, cy * cellPx, cellPx, cellPx);
+        for (const poly of heroContours) {
+          if (poly.length < 3) continue;
+          traceShape(maskGfx, poly);
+          maskGfx.fillPath();
         }
       }
     }
