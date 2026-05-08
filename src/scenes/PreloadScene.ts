@@ -20,25 +20,13 @@ export class PreloadScene extends Phaser.Scene {
       "ic_reserve_a",
       "ic_reserve_b",
       "ic_player_marker",
+      "triangle",
     ];
     for (const key of icons) {
       this.load.image(key, `assets/images/${key}.png`);
     }
 
-    // Music — ogg primary, m4a Safari fallback
-    const music: Array<[string, string]> = [
-      [AUDIO.music.menu, "mus_menu"],
-      [AUDIO.music.game, "mus_game"],
-      [AUDIO.music.gameoverStinger, "mus_stinger"],
-    ];
-    for (const [key, file] of music) {
-      this.load.audio(key, [
-        `assets/audio/music/${file}.ogg`,
-        `assets/audio/music/${file}.m4a`,
-      ]);
-    }
-
-    // SFX — ogg primary, m4a Safari fallback
+    // SFX — ogg primary, m4a Safari fallback. No background music — minimalist .io style.
     const sfx: Array<[string, string]> = [
       [AUDIO.sfx.split, "sfx_split"],
       [AUDIO.sfx.capture, "sfx_capture"],
@@ -61,7 +49,7 @@ export class PreloadScene extends Phaser.Scene {
 
   create(): void {
     yandex.gameReady();
-    this.scene.start("Menu");
+    this.scene.start("Game");
   }
 
   private createProgressBar(): void {

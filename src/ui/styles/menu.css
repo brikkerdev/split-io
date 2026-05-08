@@ -1,18 +1,137 @@
 @import './vars.css';
 
-/* ── Menu screen ──────────────────────────────────────────── */
-#menu-screen {
-  background: transparent;
+@keyframes pop-in {
+  from { transform: scale(0.88); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+@keyframes pop-in-rotated {
+  from { transform: scale(0.88) rotate(-2deg); opacity: 0; }
+  to   { transform: scale(1) rotate(-2deg);    opacity: 1; }
+}
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes slide-up-rotated {
+  from { transform: translateY(20px) rotate(1deg); opacity: 0; }
+  to   { transform: translateY(0) rotate(1deg);    opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
+/* ── Menu screen ──────────────────────────────────────────── */
+#menu-screen {
+  background: rgba(247, 244, 238, 0.55);
+  backdrop-filter: blur(2px);
+  overflow: hidden;
+}
+
+/* Large ghost-icon accent behind the PLAY zone */
+#menu-screen::before {
+  content: '';
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -52%);
+  width: 320px;
+  height: 320px;
+  background:
+    radial-gradient(circle, rgba(160,230,195,0.12) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Inner layout ─────────────────────────────────────────── */
 .menu-inner {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(20px, 3.5vh, 40px);
+  /* Logo↔Play: large gap. Play↔Buttons: half that. */
+  gap: 0;
   padding: var(--safe);
   width: 100%;
-  max-width: 600px;
+  max-width: 520px;
+}
+
+/* ── Daily reward badge — absolute top-right ──────────────── */
+#menu-screen .menu-daily-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  width: clamp(64px, 14vw, 80px);
+  height: clamp(64px, 14vw, 80px);
+  padding: 10px 8px 8px;
+
+  font-size: clamp(9px, 1.1vw, 11px);
+  font-weight: 700;
+  background: var(--yellow);
+  border: var(--border-sticker);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sticker);
+  color: var(--text);
+  transform: rotate(-3deg);
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out;
+  animation: pop-in 280ms 200ms cubic-bezier(0.34,1.56,0.64,1) both;
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#menu-screen .menu-daily-btn .ph {
+  font-size: clamp(24px, 4vw, 30px);
+}
+#menu-screen .menu-daily-btn .menu-daily-btn__label {
+  font-size: clamp(8px, 1vw, 10px);
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.2;
+}
+#menu-screen .menu-daily-btn:hover {
+  transform: rotate(-3deg) translate(-1px, -2px);
+  box-shadow: var(--shadow-sticker-hover);
+}
+#menu-screen .menu-daily-btn:active {
+  transform: rotate(-3deg) translate(2px, 2px);
+  box-shadow: var(--shadow-sticker-press);
+}
+/* notification dot */
+#menu-screen .menu-daily-btn .daily-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--ink);
+  display: none;
+}
+#menu-screen .menu-daily-btn.has-reward .daily-dot {
+  display: block;
+}
+/* dim when no reward */
+#menu-screen .menu-daily-btn:not(.has-reward) {
+  background: var(--btn-bg);
+  color: var(--text-dim);
+  transform: none;
+}
+#menu-screen .menu-daily-btn:not(.has-reward):hover {
+  transform: translate(-1px, -1px);
+}
+#menu-screen .menu-daily-btn:not(.has-reward):active {
+  transform: translate(2px, 2px);
 }
 
 /* ── Logo ─────────────────────────────────────────────────── */
@@ -20,102 +139,138 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-left: -8px; /* asymmetric nudge left */
+  margin-bottom: clamp(32px, 10vh, 72px);
+  animation: pop-in-rotated 280ms cubic-bezier(0.34,1.56,0.64,1) both;
+  transform: rotate(-2deg);
 }
+
 .menu-logo__title {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(48px, 8vw, 96px);
+  font-size: clamp(60px, 11vw, 104px);
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   color: var(--text);
   line-height: 1;
-}
-.menu-logo__best {
-  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(13px, 1.8vw, 17px);
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-/* ── Play button ──────────────────────────────────────────── */
-.menu-play-btn {
-  width: clamp(200px, 40vw, 320px);
-  height: clamp(52px, 7vh, 68px);
-  font-size: clamp(16px, 2.2vw, 20px);
-  font-weight: 700;
-  border-radius: 12px;
-  letter-spacing: 0.01em;
-}
-
-/* ── Daily reward ─────────────────────────────────────────── */
-.menu-daily-btn {
-  width: clamp(180px, 34vw, 280px);
-  height: clamp(40px, 5.5vh, 54px);
-  font-size: clamp(12px, 1.6vw, 15px);
-  background: var(--panel-bg);
-  border-color: var(--panel-border);
-  color: var(--text-dim);
-  gap: 8px;
-}
-.menu-daily-btn:hover {
-  background: #fefdf9;
-  box-shadow: 0 6px 18px rgba(240, 217, 127, 0.3);
-}
-.menu-daily-btn.has-reward {
-  border-color: var(--yellow);
-  color: var(--text);
-}
-.menu-daily-btn.has-reward i {
-  color: #c9a020;
-}
-.menu-daily-btn .daily-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--danger);
-  display: none;
-  flex-shrink: 0;
-}
-.menu-daily-btn.has-reward .daily-dot {
+  position: relative;
   display: inline-block;
 }
+.menu-logo__title::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: -4px;
+  right: -4px;
+  height: 8px;
+  background: var(--peach);
+  border-radius: 4px;
+  border: 2px solid var(--ink);
+  transform: rotate(0.5deg);
+}
 
-/* ── Secondary buttons row ────────────────────────────────── */
+.menu-logo__best {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(13px, 1.7vw, 16px);
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--yellow);
+  border: var(--border-sticker);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sticker);
+  padding: 4px 14px;
+  transform: rotate(1deg);
+}
+
+/* ── PLAY button — dominant CTA ───────────────────────────── */
+.menu-play-btn {
+  position: relative;
+  width: clamp(220px, 60vw, 320px);
+  height: clamp(72px, 9vh, 104px);
+  font-size: clamp(22px, 3vw, 28px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border-radius: 18px;
+  background: var(--mint);
+  border: 3px solid var(--ink);
+  box-shadow: 6px 6px 0 var(--ink);
+  transform: rotate(1deg);
+  margin-bottom: clamp(20px, 5vh, 44px);
+  animation: slide-up-rotated 260ms 60ms cubic-bezier(0.34,1.56,0.64,1) both;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.menu-play-btn .ph {
+  font-size: 28px;
+}
+/* Decorative pseudo-dots around PLAY */
+.menu-play-btn::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border: 2px dashed rgba(0,0,0,0.10);
+  border-radius: 26px;
+  pointer-events: none;
+}
+.menu-play-btn:hover {
+  background: var(--mint-dark);
+  transform: rotate(1deg) translate(-2px, -2px);
+  box-shadow: 8px 8px 0 var(--ink);
+}
+.menu-play-btn:active {
+  background: var(--mint-dark);
+  transform: rotate(1deg) translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+/* ── Secondary icon buttons ───────────────────────────────── */
 .menu-secondary-row {
   display: flex;
-  gap: clamp(10px, 1.8vw, 20px);
+  gap: clamp(12px, 2.5vw, 20px);
   justify-content: center;
   flex-wrap: wrap;
+  animation: slide-up 300ms 160ms ease-out both;
 }
+
 .menu-icon-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  width: clamp(60px, 9.5vw, 84px);
-  padding: clamp(10px, 1.5vh, 16px) 0;
-  border-radius: 12px;
+  gap: 7px;
+  width: clamp(76px, 13vw, 92px);
+  height: clamp(88px, 11vh, 104px);
+  padding: clamp(14px, 2vh, 20px) 0 clamp(10px, 1.5vh, 14px);
+  border-radius: 18px;
   cursor: pointer;
   user-select: none;
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
   background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow-card);
-  transition: background var(--transition), box-shadow var(--transition), transform 80ms ease-out;
+  border: var(--border-sticker);
+  box-shadow: var(--shadow-sticker);
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out;
 }
 .menu-icon-btn:hover {
-  background: var(--btn-hover);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sticker-hover);
 }
 .menu-icon-btn:active {
-  transform: scale(0.95);
-  background: var(--btn-press);
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-sticker-press);
 }
+
+/* Individual pastel colours per index */
+.menu-icon-btn:nth-child(1) { background: var(--lavender); }
+.menu-icon-btn:nth-child(2) { background: var(--peach); }
+.menu-icon-btn:nth-child(3) { background: var(--mint); }
+.menu-icon-btn:nth-child(4) { background: var(--lilac); }
+
 .menu-icon-btn__glyph {
-  font-size: clamp(20px, 3.2vw, 30px);
+  font-size: clamp(26px, 4vw, 34px);
   line-height: 1;
-  color: var(--text-dim);
+  color: var(--text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -123,11 +278,11 @@
 .menu-icon-btn__label {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
   font-size: clamp(9px, 1.1vw, 12px);
-  font-weight: 600;
-  color: var(--text-muted);
+  font-weight: 700;
+  color: var(--text);
   text-align: center;
   word-break: break-word;
-  max-width: 72px;
+  max-width: 80px;
   line-height: 1.2;
 }
 
@@ -141,49 +296,50 @@
   justify-content: center;
   z-index: 100;
   pointer-events: auto;
-  animation: fade-in 200ms ease;
-}
-@keyframes fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  animation: fade-in 180ms ease;
 }
 .modal-box {
   position: relative;
-  padding: clamp(24px, 4vh, 40px) clamp(24px, 4vw, 48px);
-  max-width: min(520px, 90vw);
+  padding: clamp(28px, 4.5vh, 44px) clamp(28px, 4.5vw, 52px);
+  max-width: min(520px, 92vw);
   width: 100%;
-  animation: scale-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-@keyframes scale-in {
-  from { transform: scale(0.9); opacity: 0; }
-  to   { transform: scale(1);   opacity: 1; }
+  animation: pop-in 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .modal-title {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(18px, 2.8vw, 24px);
-  font-weight: 700;
+  font-size: clamp(20px, 2.8vw, 26px);
+  font-weight: 800;
   color: var(--text);
-  margin-bottom: clamp(14px, 2vh, 24px);
+  margin-bottom: clamp(16px, 2.5vh, 28px);
   text-align: center;
 }
 .modal-close-btn {
   position: absolute;
-  top: 12px;
+  top: 14px;
   right: 14px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 20px;
+  background: var(--bg);
+  border: var(--border-sticker);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sticker);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   pointer-events: auto;
-  line-height: 1;
-  transition: color var(--transition);
-  padding: 4px 8px;
-  border-radius: 6px;
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out;
 }
 .modal-close-btn:hover {
-  color: var(--text);
-  background: rgba(0, 0, 0, 0.05);
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-sticker-hover);
+}
+.modal-close-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-sticker-press);
 }
 .modal-body {
   color: var(--text-dim);
@@ -192,7 +348,7 @@
   line-height: 1.6;
 }
 .modal-actions {
-  margin-top: clamp(14px, 2vh, 24px);
+  margin-top: clamp(16px, 2.5vh, 28px);
   display: flex;
   gap: 12px;
   justify-content: center;
@@ -201,4 +357,25 @@
 .modal-actions .btn {
   padding: 12px 28px;
   font-size: clamp(13px, 1.6vw, 16px);
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  #menu-screen .menu-daily-btn {
+    top: 12px;
+    right: 12px;
+    width: clamp(60px, 17vw, 72px);
+    height: clamp(60px, 17vw, 72px);
+  }
+  .menu-logo {
+    margin-bottom: clamp(24px, 8vh, 48px);
+  }
+  .menu-play-btn {
+    width: min(88vw, 300px);
+    margin-bottom: clamp(16px, 4vh, 32px);
+  }
+  .menu-icon-btn {
+    width: clamp(66px, 19vw, 80px);
+    height: clamp(80px, 10vh, 96px);
+  }
 }

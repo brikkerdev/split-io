@@ -4,10 +4,10 @@ import { ADS } from "@config/ads";
 import { BALANCE } from "@config/balance";
 import { BOTS } from "@config/bots";
 import { GRID } from "@config/grid";
+import { GAME_HEIGHT, GAME_WIDTH } from "@config/game";
 import { MAP } from "@config/map";
 import { PALETTE } from "@config/palette";
 import { RENDER } from "@config/render";
-import { GAME_HEIGHT, GAME_WIDTH } from "@config/game";
 import { GameEvents } from "@events/GameEvents";
 import { Hero } from "@entities/Hero";
 import { GridSystem } from "@systems/GridSystem";
@@ -22,6 +22,7 @@ import { JuiceSystem } from "@systems/JuiceSystem";
 import { AchievementSystem } from "@systems/AchievementSystem";
 import { saves } from "@systems/SaveManager";
 import { AdSystem } from "@systems/AdSystem";
+import { DomUI } from "@ui/dom/DomUI";
 import { SKINS } from "@config/skins";
 import { yandex } from "@sdk/yandex";
 import type { SaveV1 } from "@/types/save";
@@ -34,22 +35,24 @@ import type {
 import type { Vec2 } from "@gametypes/geometry";
 import { t } from "@ui/dom/i18n";
 
-// Render depth layers
 const DEPTH_BG = 0;
 const DEPTH_TERRITORY = 10;
 const DEPTH_TRAIL = 20;
 const DEPTH_UNIT = 30;
-const DEPTH_UI = 40;
 
-// Hero radius in px for rendering
 const HERO_RADIUS_PX = 10;
 const GHOST_RADIUS_PX = 8;
 const BOT_RADIUS_PX = 9;
 
-// Glow bots: nearest N bots get glow effect
 const GLOW_BOT_COUNT = 5;
 
-/** Shade a 0xRRGGBB color: amount > 0 lightens, amount < 0 darkens. */
+const DEMO_BOT_COUNT = 12;
+const DEMO_FAIRNESS_RESET_SEC = 60;
+const DEMO_FAIRNESS_PCT_LIMIT = 30;
+const SAFE_SPAWN_RADIUS_CELLS = 8;
+
+type GamePhase = "demo" | "playing" | "gameover";
+
 function shadeColor(color: number, amount: number): number {
   const r = (color >> 16) & 0xff;
   const g = (color >> 8) & 0xff;
@@ -62,7 +65,6 @@ function shadeColor(color: number, amount: number): number {
 }
 
 export class GameScene extends Phaser.Scene {
-  // Systems
   private grid!: GridSystem;
   private trailSys!: TrailSystem;
   private territorySys!: TerritorySystem;
@@ -74,42 +76,33 @@ export class GameScene extends Phaser.Scene {
   private juiceSys!: JuiceSystem;
   private achievementSys!: AchievementSystem;
 
-  // Entities
   private hero!: Hero;
 
-  // Graphics layers
   private bgGfx!: Phaser.GameObjects.Graphics;
   private territoryGfx!: Phaser.GameObjects.Graphics;
   private trailGfx!: Phaser.GameObjects.Graphics;
   private unitGfx!: Phaser.GameObjects.Graphics;
   private heroMarker?: Phaser.GameObjects.Image;
 
-  // Invisible camera follow target — updated each frame to hero pos + look-ahead.
   private camTarget!: Phaser.GameObjects.Rectangle;
 
-
-  // Dirty flags — territory only redraws when grid changed
   private territoryDirty = true;
 
-  // Shake throttle — avoids shake storm from many loop captures
-  private lastShakeMs = -Infinity;
-
-  // Round state — endless, ends only on hero death.
-  private roundActive = false;
+  private phase: GamePhase = "demo";
   private isFirstRound = false;
   private firstRoundPassiveTimer = 0;
   private roundStartMs = 0;
   private roundEndEmitted = false;
+  private continueUsed = false;
+  private demoFairnessTimer = 0;
 
-  // T3: in-round respawn
   private adSys = new AdSystem();
+  private domUI = DomUI.get();
 
-  // Skin color — resolved once per round from save
   private heroFill: number = PALETTE.hero.fill;
   private heroTerritory: number = PALETTE.hero.territory;
   private heroTrail: number = PALETTE.hero.trail;
 
-  // Pause state
   private isPaused = false;
   private pauseStartMs = 0;
 
@@ -118,54 +111,41 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    // Reset all per-run state — class instance is reused across restarts.
     this.territoryDirty = true;
-    this.lastShakeMs = -Infinity;
     this.firstRoundPassiveTimer = 0;
     this.roundEndEmitted = false;
-    this.roundActive = false;
     this.isPaused = false;
     this.pauseStartMs = 0;
+    this.continueUsed = false;
+    this.demoFairnessTimer = 0;
+    this.phase = "demo";
 
     const save = saves.get<SaveV1>();
     this.isFirstRound = save.roundsPlayed === 0;
-
     this.game.sound.volume = save.settings.sfxVolume ?? 1.0;
 
-    // Resolve hero colors from selected skin
-    const skinDef = SKINS.find((s) => s.id === save.selectedSkin);
-    if (skinDef) {
-      this.heroFill = skinDef.fill;
-      this.heroTerritory = shadeColor(skinDef.fill, -0.3);
-      this.heroTrail = shadeColor(skinDef.fill, 0.2);
-    } else {
-      this.heroFill = PALETTE.hero.fill;
-      this.heroTerritory = PALETTE.hero.territory;
-      this.heroTrail = PALETTE.hero.trail;
+    const fallbackSkin = SKINS[0]!;
+    let skinDef = SKINS.find((s) => s.id === save.selectedSkin);
+    if (!skinDef) {
+      skinDef = fallbackSkin;
+      saves.patch({
+        selectedSkin: skinDef.id,
+        unlockedSkins: save.unlockedSkins?.includes(skinDef.id)
+          ? save.unlockedSkins
+          : [...(save.unlockedSkins ?? []), skinDef.id],
+      });
     }
+    this.heroFill = skinDef.fill;
+    this.heroTerritory = shadeColor(skinDef.fill, -0.3);
+    this.heroTrail = shadeColor(skinDef.fill, 0.2);
 
     this.adSys.resetRoundContinue();
 
     this.initSystems(save);
     this.createGraphicsLayers();
     this.bindEvents();
-    this.spawnHero();
-    this.spawnBots();
-    this.setupCamera();
-
-    yandex.gameplayStart();
-    try {
-      this.sound.stopAll();
-      if (this.cache.audio.exists(AUDIO.sfx.matchStart)) {
-        this.sound.play(AUDIO.sfx.matchStart, { volume: 0.7 });
-      }
-      if (this.cache.audio.exists(AUDIO.music.game)) {
-        this.sound.play(AUDIO.music.game, { loop: true, volume: 0.35 });
-      }
-    } catch { /* silent */ }
-    this.roundActive = true;
-    this.roundStartMs = this.time.now;
-    this.roundEndEmitted = false;
+    this.spawnDemoBots();
+    this.setupDemoCamera();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
 
@@ -174,40 +154,180 @@ export class GameScene extends Phaser.Scene {
       this.game.events.off(GameEvents.RoundContinue, this.applyContinue, this);
     }, this);
 
-    this.scene.launch("UI", { heroId: this.hero.id });
+    try {
+      this.sound.stopAll();
+    } catch { /* silent */ }
 
-    // Push initial leaderboard snapshot once UI scene has subscribed.
+    this.domUI.mountMenu(this.game, () => this.enterPlayMode());
+
     this.time.delayedCall(0, () => this.emitLeaderboard());
   }
 
   override update(_time: number, delta: number): void {
-    if (!this.roundActive) return;
+    const dt = delta / 1000;
 
-    const dt = delta / 1000; // seconds
-
-    // First-round passive bot phase
-    if (this.isFirstRound && this.firstRoundPassiveTimer < BALANCE.botFirstRoundPassiveSec) {
-      this.firstRoundPassiveTimer += dt;
+    if (this.phase === "playing" && !this.isPaused) {
+      if (this.isFirstRound && this.firstRoundPassiveTimer < BALANCE.botFirstRoundPassiveSec) {
+        this.firstRoundPassiveTimer += dt;
+      }
+      this.inputSys.update(delta, this.hero.pos.x, this.hero.pos.y);
+      this.moveHero(dt);
+      this.updateCamera(dt);
+      this.ghostSys.update(dt, this.time.now, this.hero);
+      this.progressionSys.onTerritoryPct(
+        this.territorySys.getOwnerPercent(this.hero.id),
+      );
     }
 
-    // Input -> hero heading
-    this.inputSys.update(delta, this.hero.pos.x, this.hero.pos.y);
-    this.moveHero(dt);
-    this.updateCamera(dt);
+    if (this.phase !== "gameover" || this.phase === "gameover") {
+      // Bots tick in all phases except when paused (pause only matters in playing).
+      const botsActive = this.phase !== "playing" || !this.isPaused;
+      if (botsActive) this.botAI.update(dt);
+    }
 
-    // Ghost update
-    this.ghostSys.update(dt, this.time.now, this.hero);
+    if (this.phase === "demo") {
+      this.tickDemoFairness(dt);
+    }
 
-    // Bot AI
-    this.botAI.update(dt);
-
-    // Progression check
-    this.progressionSys.onTerritoryPct(
-      this.territorySys.getOwnerPercent(this.hero.id),
-    );
-
-    // Render
     this.renderFrame();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Phase transitions
+  // ---------------------------------------------------------------------------
+
+  enterPlayMode(): void {
+    if (this.phase === "playing") return;
+
+    this.domUI.dismountMenu();
+
+    this.spawnHero();
+    this.setupPlayCamera();
+
+    this.phase = "playing";
+    this.roundStartMs = this.time.now;
+    this.roundEndEmitted = false;
+    this.continueUsed = false;
+    this.adSys.resetRoundContinue();
+    this.achievementSys.resetRound();
+
+    yandex.gameplayStart();
+    try {
+      this.sound.stopAll();
+      if (this.cache.audio.exists(AUDIO.sfx.matchStart)) {
+        this.sound.play(AUDIO.sfx.matchStart, { volume: 0.7 });
+      }
+    } catch { /* silent */ }
+
+    this.scene.launch("UI", { heroId: this.hero.id });
+    this.time.delayedCall(0, () => this.emitLeaderboard());
+  }
+
+  private endRound(): void {
+    if (this.roundEndEmitted) return;
+    this.roundEndEmitted = true;
+    this.phase = "gameover";
+
+    yandex.gameplayStop();
+
+    const elapsedSec = (this.time.now - this.roundStartMs) / 1000;
+    const territoryPct = this.territorySys.getOwnerPercent(this.hero.id);
+    const breakdown: RoundBreakdown = this.scoreSys.finalize(elapsedSec, territoryPct);
+
+    this.events.emit(GameEvents.RoundEnd, breakdown);
+
+    const save = saves.get<SaveV1>();
+    const newBest = breakdown.total > save.bestScore;
+    saves.patch({
+      roundsPlayed: save.roundsPlayed + 1,
+      bestScore: newBest ? breakdown.total : save.bestScore,
+    });
+
+    this.time.delayedCall(400, () => {
+      if (this.phase !== "gameover") return;
+      this.scene.stop("UI");
+      this.domUI.mountGameOver(
+        this.game,
+        breakdown,
+        true,
+        () => this.handleContinueClick(),
+        () => this.handleRestartClick(),
+        () => this.handleMenuClick(),
+      );
+    });
+  }
+
+  private async handleContinueClick(): Promise<void> {
+    if (this.continueUsed) return;
+    const granted = await this.adSys.showRewarded("continue");
+    if (!granted) return;
+    this.continueUsed = true;
+    this.domUI.dismountGameOver();
+    this.game.events.emit(GameEvents.RoundContinue);
+  }
+
+  private async handleRestartClick(): Promise<void> {
+    await this.adSys.showInterstitial();
+    this.restartRound();
+  }
+
+  private handleMenuClick(): void {
+    try { this.sound.stopAll(); } catch { /* silent */ }
+    this.exitToDemo();
+  }
+
+  restartRound(): void {
+    this.domUI.dismountGameOver();
+    this.releaseHeroState();
+
+    this.spawnHero();
+    this.setupPlayCamera();
+
+    this.phase = "playing";
+    this.roundStartMs = this.time.now;
+    this.roundEndEmitted = false;
+    this.continueUsed = false;
+    this.adSys.resetRoundContinue();
+    this.achievementSys.resetRound();
+
+    yandex.gameplayStart();
+    try {
+      this.sound.stopAll();
+      if (this.cache.audio.exists(AUDIO.sfx.matchStart)) {
+        this.sound.play(AUDIO.sfx.matchStart, { volume: 0.7 });
+      }
+    } catch { /* silent */ }
+
+    this.scene.launch("UI", { heroId: this.hero.id });
+  }
+
+  exitToDemo(): void {
+    this.domUI.dismountGameOver();
+    this.releaseHeroState();
+    this.setupDemoCamera();
+
+    this.phase = "demo";
+    this.roundEndEmitted = false;
+    this.continueUsed = false;
+    this.demoFairnessTimer = 0;
+
+    this.domUI.mountMenu(this.game, () => this.enterPlayMode());
+  }
+
+  /** Wipe hero-owned grid + trail + visual + alive flag. Bots untouched. */
+  private releaseHeroState(): void {
+    this.territorySys.releaseOwner(this.hero.id);
+    this.trailSys.clearTrail(this.hero.id);
+    this.hero.alive = false;
+    this.hero.posHistory = [];
+    this.hero.velocity = { x: 0, y: 0 };
+    this.ghostSys.destroy();
+    this.ghostSys = new GhostSystem(this, this.hero, this.trailSys);
+    if (this.isFirstRound) {
+      this.ghostSys.setCooldownSec(BALANCE.splitCooldownFirstRoundSec);
+    }
+    this.trailSys.setPeerGroup(this.hero.id, [this.hero.id]);
+    this.territoryDirty = true;
   }
 
   // ---------------------------------------------------------------------------
@@ -222,20 +342,19 @@ export class GameScene extends Phaser.Scene {
     this.progressionSys = new ProgressionSystem(this);
     this.juiceSys = new JuiceSystem(this);
 
-    // Hero entity
     this.hero = new Hero();
     this.hero.speedCellsPerSec = BALANCE.heroBaseSpeedCellsPerSec;
+    this.hero.alive = false;
+    this.hero.pos = { x: MAP.centerX, y: MAP.centerY };
     this.juiceSys.setHeroId(this.hero.id);
     this.scoreSys.setHeroId(this.hero.id);
 
     this.ghostSys = new GhostSystem(this, this.hero, this.trailSys);
 
-    // Adjust cooldown for first round
     if (this.isFirstRound) {
       this.ghostSys.setCooldownSec(BALANCE.splitCooldownFirstRoundSec);
     }
 
-    // Register hero peer group (group = 1, same as hero id)
     this.trailSys.setPeerGroup(this.hero.id, [this.hero.id]);
 
     this.botAI = new BotAI(this, this.grid, this.trailSys, this.hero, this.territorySys);
@@ -249,49 +368,76 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnHero(): void {
+    const center = { cx: Math.floor(GRID.cols / 2), cy: Math.floor(GRID.rows / 2) };
+    const safe = this.findSafeSpawnNear(center, SAFE_SPAWN_RADIUS_CELLS);
     const r = GRID.startTerritoryRadiusCells;
-    const cx = GRID.cols / 2;
-    const cy = GRID.rows / 2;
 
-    const worldPos = this.grid.cellToWorld({ cx, cy });
+    const worldPos = this.grid.cellToWorld(safe);
     this.hero.pos = { x: worldPos.x, y: worldPos.y };
     this.hero.heading = 0;
     this.hero.alive = true;
+    this.hero.posHistory = [];
+    this.hero.velocity = { x: 0, y: 0 };
 
-    // Claim starting territory
     const packed: number[] = [];
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
-        const ncx = cx + dx;
-        const ncy = cy + dy;
-        if (this.grid.inBounds(ncx, ncy)) {
-          this.grid.setOwner(ncx, ncy, this.hero.id);
-          packed.push(ncy * this.grid.cols + ncx);
+        const ncx = safe.cx + dx;
+        const ncy = safe.cy + dy;
+        if (!this.grid.inBounds(ncx, ncy)) continue;
+        const prevOwner = this.grid.ownerOf(ncx, ncy);
+        if (prevOwner !== 0 && prevOwner !== this.hero.id) {
+          // Take it from the bot — small concession for a clean spawn pocket.
+          this.territorySys.releaseOwner(prevOwner);
         }
+        this.grid.setOwner(ncx, ncy, this.hero.id);
+        packed.push(ncy * this.grid.cols + ncx);
       }
     }
     this.territorySys.claimCells(this.hero.id, packed);
 
-    // Peer group: hero alone; ghost will be added when spawned
     this.trailSys.setPeerGroup(this.hero.id, [this.hero.id]);
+    this.territoryDirty = true;
   }
 
-  private spawnBots(): void {
-    const count = this.isFirstRound
-      ? BOTS.firstRunCount
-      : Phaser.Math.Between(BALANCE.botCountMin, BALANCE.botCountMax);
+  private findSafeSpawnNear(
+    target: { cx: number; cy: number },
+    maxR: number,
+  ): { cx: number; cy: number } {
+    if (this.grid.ownerOf(target.cx, target.cy) === 0) return target;
+    for (let r = 1; r <= maxR; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+          const ncx = target.cx + dx;
+          const ncy = target.cy + dy;
+          if (!this.grid.inBounds(ncx, ncy)) continue;
+          if (this.grid.ownerOf(ncx, ncy) === 0) return { cx: ncx, cy: ncy };
+        }
+      }
+    }
+    return target;
+  }
 
-    const passive = this.isFirstRound && BOTS.firstRunPassive;
-
+  private spawnDemoBots(): void {
     this.botAI.spawn({
-      count,
-      passive,
-      profileWeights: {
-        aggressor: 0.35,
-        tourist: 0.4,
-        hoarder: 0.25,
-      },
+      count: DEMO_BOT_COUNT,
+      passive: false,
+      profileWeights: { aggressor: 0.35, tourist: 0.4, hoarder: 0.25 },
     });
+  }
+
+  private tickDemoFairness(dt: number): void {
+    this.demoFairnessTimer += dt;
+    if (this.demoFairnessTimer < DEMO_FAIRNESS_RESET_SEC) return;
+    this.demoFairnessTimer = 0;
+    for (const bot of this.botAI.getAll()) {
+      const pct = this.territorySys.getOwnerPercent(bot.id);
+      if (pct > DEMO_FAIRNESS_PCT_LIMIT) {
+        this.territorySys.shrinkOwner(bot.id, 0.4);
+      }
+    }
+    this.territoryDirty = true;
   }
 
   private createGraphicsLayers(): void {
@@ -305,39 +451,50 @@ export class GameScene extends Phaser.Scene {
         .image(this.hero.pos.x, this.hero.pos.y, "ic_player_marker")
         .setDepth(DEPTH_UNIT + 1)
         .setDisplaySize(HERO_RADIUS_PX * 1.6, HERO_RADIUS_PX * 1.6)
-        .setTint(PALETTE.ui.text);
+        .setTint(PALETTE.ui.text)
+        .setVisible(false);
     }
+
+    this.camTarget = this.add
+      .rectangle(MAP.centerX, MAP.centerY, 1, 1, 0x000000, 0)
+      .setDepth(-1);
 
     this.drawStaticBg();
   }
 
-  private setupCamera(): void {
+  private setupDemoCamera(): void {
     const worldW = GRID.cols * GRID.cellPx;
     const worldH = GRID.rows * GRID.cellPx;
     const cam = this.cameras.main;
+    cam.stopFollow();
+    cam.setBounds(0, 0, worldW, worldH);
+    const fitZoom = Math.min(
+      GAME_WIDTH / (MAP.radiusPx * 2 + MAP.borderWidthPx * 4),
+      GAME_HEIGHT / (MAP.radiusPx * 2 + MAP.borderWidthPx * 4),
+    );
+    cam.setZoom(fitZoom);
+    cam.centerOn(MAP.centerX, MAP.centerY);
+  }
 
+  private setupPlayCamera(): void {
+    const worldW = GRID.cols * GRID.cellPx;
+    const worldH = GRID.rows * GRID.cellPx;
+    const cam = this.cameras.main;
     cam.setBounds(0, 0, worldW, worldH);
     cam.setZoom(RENDER.camera.zoomMax);
     cam.roundPixels = false;
-
-    // 1×1 invisible target for Phaser's startFollow.
-    this.camTarget = this.add
-      .rectangle(this.hero.pos.x, this.hero.pos.y, 1, 1, 0x000000, 0)
-      .setDepth(-1);
-
+    this.camTarget.setPosition(this.hero.pos.x, this.hero.pos.y);
     cam.startFollow(this.camTarget, false, RENDER.camera.followLerp, RENDER.camera.followLerp);
     cam.centerOn(this.hero.pos.x, this.hero.pos.y);
   }
 
   private bindEvents(): void {
-    // When player's trail is cut → player dies
     this.events.on(GameEvents.TrailCut, (payload: { victim: number; killer: number }) => {
       if (payload.victim === this.hero.id) {
         this.handlePlayerDeath("trail_cut");
       }
     });
 
-    // When ghost is spawned, register it in peer group so trails can close
     this.events.on(
       GameEvents.GhostSpawned,
       (_payload: { pos: { x: number; y: number }; heading: number }) => {
@@ -348,12 +505,10 @@ export class GameScene extends Phaser.Scene {
       },
     );
 
-    // When ghost is destroyed, remove it from peer group
     this.events.on(GameEvents.GhostDestroyed, () => {
       this.trailSys.setPeerGroup(this.hero.id, [this.hero.id]);
     });
 
-    // Mark territory as dirty whenever it changes
     this.events.on(GameEvents.TerritoryUpdate, () => {
       this.territoryDirty = true;
       this.emitLeaderboard();
@@ -364,23 +519,23 @@ export class GameScene extends Phaser.Scene {
 
     this.events.on(GameEvents.PlayerDied, () => this.emitLeaderboard());
 
-    // Pause system — subscribe on game.events (cross-scene)
     this.game.events.on("pause:toggle", this.handlePauseToggle, this);
     this.game.events.on("pause:menu", this.handlePauseMenu, this);
   }
 
   private emitLeaderboard(): void {
     const heroPct = this.territorySys.getOwnerPercent(this.hero.id);
-    const entries: LeaderboardEntry[] = [
-      {
+    const entries: LeaderboardEntry[] = [];
+    if (this.phase !== "demo" || this.hero.alive) {
+      entries.push({
         id: this.hero.id,
         name: t("hud_lb_you"),
         color: this.heroFill,
         percent: heroPct,
         isHero: true,
         alive: this.hero.alive,
-      },
-    ];
+      });
+    }
 
     for (const bot of this.botAI.getAll()) {
       entries.push({
@@ -395,7 +550,8 @@ export class GameScene extends Phaser.Scene {
 
     entries.sort((a, b) => b.percent - a.percent);
 
-    const heroRank = entries.findIndex((e) => e.isHero) + 1;
+    const heroIdx = entries.findIndex((e) => e.isHero);
+    const heroRank = heroIdx === -1 ? -1 : heroIdx + 1;
     const payload: LeaderboardUpdatePayload = {
       entries,
       heroRank,
@@ -418,7 +574,6 @@ export class GameScene extends Phaser.Scene {
     const dx = heading.x * this.hero.speedCellsPerSec * cellPx * dt;
     const dy = heading.y * this.hero.speedCellsPerSec * cellPx * dt;
 
-    // Update velocity for camera look-ahead (px/sec)
     if (dt > 0) {
       this.hero.velocity.x = dx / dt;
       this.hero.velocity.y = dy / dt;
@@ -427,7 +582,6 @@ export class GameScene extends Phaser.Scene {
     let newX = this.hero.pos.x + dx;
     let newY = this.hero.pos.y + dy;
 
-    // Circular boundary: clamp position onto the play circle.
     const ddx = newX - MAP.centerX;
     const ddy = newY - MAP.centerY;
     const distSq = ddx * ddx + ddy * ddy;
@@ -441,15 +595,23 @@ export class GameScene extends Phaser.Scene {
     this.hero.pos.x = newX;
     this.hero.pos.y = newY;
 
-    // Trail: only append when outside own territory
     const { cx, cy } = this.grid.worldToCell(this.hero.pos);
     const cellOwner = this.grid.ownerOf(cx, cy);
 
     if (cellOwner !== this.hero.id) {
+      const heroTrail = this.trailSys.get(this.hero.id);
+      if (heroTrail?.active && heroTrail.hasCell(cx, cy)) {
+        const cells = heroTrail.getCells();
+        const lastPacked = cells[cells.length - 1];
+        const curPacked = cy * this.grid.cols + cx;
+        if (lastPacked !== curPacked) {
+          this.handlePlayerDeath("self_trail");
+          return;
+        }
+      }
       this.trailSys.addCellToTrail(this.hero.id, cx, cy);
       const collision = this.trailSys.checkTrailCollision(this.hero.id, cx, cy);
 
-      // Record position for smooth trail rendering.
       this.appendHeroPosHistory(newX, newY);
 
       if (collision === "closed") {
@@ -458,7 +620,6 @@ export class GameScene extends Phaser.Scene {
         this.ghostSys.onLoopClosed();
       }
     } else {
-      // Re-entered own territory — trigger loop closure if trail is active.
       const trail = this.trailSys.get(this.hero.id);
       if (trail && trail.active && trail.length > 0) {
         this.trailSys.checkTrailCollision(this.hero.id, cx, cy);
@@ -468,7 +629,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Ghost in-home guard
     const ghost = this.ghostSys.getActive();
     if (ghost && ghost.alive) {
       const gCell = this.grid.worldToCell(ghost.pos);
@@ -482,11 +642,9 @@ export class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const cfg = RENDER.camera;
 
-    // Drive Phaser's follow target with hero pos + velocity look-ahead.
     this.camTarget.x = this.hero.pos.x + this.hero.velocity.x * cfg.lookAheadSec;
     this.camTarget.y = this.hero.pos.y + this.hero.velocity.y * cfg.lookAheadSec;
 
-    // Smooth zoom based on hero speed.
     const heroSpeed = Math.sqrt(
       this.hero.velocity.x * this.hero.velocity.x +
       this.hero.velocity.y * this.hero.velocity.y,
@@ -513,39 +671,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePlayerDeath(cause: string): void {
-    if (!this.roundActive) return;
+    if (this.phase !== "playing") return;
     this.hero.alive = false;
     this.events.emit(GameEvents.PlayerDied, { cause });
     this.endRound();
-  }
-
-  private endRound(): void {
-    if (this.roundEndEmitted) return;
-    this.roundEndEmitted = true;
-    this.roundActive = false;
-
-    yandex.gameplayStop();
-
-    // Endless mode: "remaining" carries elapsed survival time as a positive bonus.
-    const elapsedSec = (this.time.now - this.roundStartMs) / 1000;
-    const territoryPct = this.territorySys.getOwnerPercent(this.hero.id);
-    const breakdown: RoundBreakdown = this.scoreSys.finalize(elapsedSec, territoryPct);
-
-    this.events.emit(GameEvents.RoundEnd, breakdown);
-
-    const save = saves.get<SaveV1>();
-    const newBest = breakdown.total > save.bestScore;
-    saves.patch({
-      roundsPlayed: save.roundsPlayed + 1,
-      bestScore: newBest ? breakdown.total : save.bestScore,
-    });
-
-    this.time.delayedCall(400, () => {
-      this.scene.stop("UI");
-      // Pause (not stop) so systems remain alive for applyContinue.
-      this.scene.pause("Game");
-      this.scene.launch("GameOver", { breakdown, isDeath: true });
-    });
   }
 
   // ---------------------------------------------------------------------------
@@ -560,12 +689,10 @@ export class GameScene extends Phaser.Scene {
     const cy = MAP.centerY;
     const r = MAP.radiusPx;
 
-    // Outside-circle void (deep tone — visual "off-board").
     const voidColor = shadeColor(PALETTE.bg, -0.18);
     gfx.fillStyle(voidColor, 1);
     gfx.fillRect(0, 0, worldW, worldH);
 
-    // 3D bevel rings: outer dark shadow band, then inner light highlight.
     const bw = MAP.borderWidthPx;
     gfx.fillStyle(shadeColor(PALETTE.bg, -0.32), 1);
     gfx.fillCircle(cx, cy, r + bw);
@@ -573,15 +700,12 @@ export class GameScene extends Phaser.Scene {
     gfx.fillStyle(shadeColor(PALETTE.bg, -0.12), 1);
     gfx.fillCircle(cx, cy, r + bw * 0.55);
 
-    // Inner light edge — playfield highlight.
     gfx.fillStyle(shadeColor(PALETTE.bg, 0.08), 1);
     gfx.fillCircle(cx, cy, r + 2);
 
-    // Playfield itself.
     gfx.fillStyle(PALETTE.bg, 1);
     gfx.fillCircle(cx, cy, r);
 
-    // Decorative grid (clipped to circle by drawing only inside).
     gfx.lineStyle(1, PALETTE.gridLine, GRID.bgLineAlpha);
     const step = GRID.cellPx * GRID.bgLineEvery;
     for (let x = 0; x <= worldW; x += step) {
@@ -593,7 +717,6 @@ export class GameScene extends Phaser.Scene {
       if (dx > 0) gfx.lineBetween(cx - dx, y, cx + dx, y);
     }
 
-    // Sharp boundary line.
     gfx.lineStyle(2, shadeColor(PALETTE.bg, -0.45), 0.75);
     gfx.strokeCircle(cx, cy, r);
   }
@@ -640,7 +763,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Pass 1: drop shadow — boundary cells only (cells with any non-same neighbour).
     gfx.fillStyle(0x000000, RENDER.territory.shadowAlpha);
     for (const [ownerId, { cells }] of byOwner) {
       for (const p of cells) {
@@ -661,7 +783,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Pass 2: main fill — all cells solid.
     for (const { color, cells } of byOwner.values()) {
       gfx.fillStyle(color, RENDER.territory.fillAlpha);
       for (const p of cells) {
@@ -671,7 +792,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Pass 3: boundary contour — bright top/left highlight, dark bottom/right.
     for (const [ownerId, { color, cells }] of byOwner) {
       const hi = shadeColor(color, RENDER.territory.bevelHiAmount);
       const lo = shadeColor(color, RENDER.territory.bevelLoAmount);
@@ -699,7 +819,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Pass 4: outer contour stroke — single bright line tracing boundary edges.
     for (const [ownerId, { color, cells }] of byOwner) {
       const contourColor = shadeColor(color, 0.3);
       gfx.lineStyle(RENDER.contour.lineWidth, contourColor, RENDER.contour.alpha);
@@ -728,7 +847,6 @@ export class GameScene extends Phaser.Scene {
     const gfx = this.trailGfx;
     gfx.clear();
 
-    // Hero trail
     const heroTrail = this.trailSys.get(this.hero.id);
     if (heroTrail && heroTrail.active && this.hero.posHistory.length > 1) {
       this.drawSmoothTrail(
@@ -740,7 +858,6 @@ export class GameScene extends Phaser.Scene {
       );
     }
 
-    // Ghost trail
     const ghost = this.ghostSys.getActive();
     if (ghost && ghost.alive) {
       const ghostTrail = this.trailSys.get(ghost.id);
@@ -755,7 +872,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Bot trails
     for (const bot of this.botAI.getAll()) {
       if (!bot.alive) continue;
       const trail = this.trailSys.get(bot.id);
@@ -797,7 +913,6 @@ export class GameScene extends Phaser.Scene {
     const heroX = this.hero.pos.x;
     const heroY = this.hero.pos.y;
 
-    // Nearest 5 bots for glow
     const bots = this.botAI.getAll();
     const sortedBots = bots
       .filter((b) => b.alive)
@@ -807,7 +922,6 @@ export class GameScene extends Phaser.Scene {
       }))
       .sort((a, b2) => a.dist - b2.dist);
 
-    // Bots (far first)
     for (let i = sortedBots.length - 1; i >= 0; i--) {
       const { bot, dist } = sortedBots[i]!;
       const glow = i < GLOW_BOT_COUNT ? PALETTE.botGlowNearest : PALETTE.botGlowFar;
@@ -820,7 +934,6 @@ export class GameScene extends Phaser.Scene {
       gfx.fillCircle(bot.pos.x, bot.pos.y, BOT_RADIUS_PX);
     }
 
-    // Ghost
     const ghost = this.ghostSys.getActive();
     if (ghost && ghost.alive) {
       gfx.fillStyle(PALETTE.ghost.fill, PALETTE.ghost.glow * 0.4);
@@ -829,7 +942,6 @@ export class GameScene extends Phaser.Scene {
       gfx.fillCircle(ghost.pos.x, ghost.pos.y, GHOST_RADIUS_PX);
     }
 
-    // Hero
     if (this.hero.alive) {
       this.drawHeroSplitState(gfx, heroX, heroY);
 
@@ -843,18 +955,11 @@ export class GameScene extends Phaser.Scene {
       this.heroMarker.setVisible(this.hero.alive);
       if (this.hero.alive) {
         this.heroMarker.setPosition(heroX, heroY);
-        // Sprite arrow points up; heading 0 == +x in world, so add -PI/2.
         this.heroMarker.setRotation(this.hero.heading - Math.PI / 2);
       }
     }
   }
 
-  /**
-   * Visual indicator of Split (ghost) state, drawn around the hero:
-   *  • ghost active   → orbiting linked ring (lavender, dashed look)
-   *  • ready          → pulsing bright lavender ring + spark
-   *  • cooldown       → dim arc filling clockwise as it recharges
-   */
   private drawHeroSplitState(
     gfx: Phaser.GameObjects.Graphics,
     x: number,
@@ -867,10 +972,9 @@ export class GameScene extends Phaser.Scene {
     const ready = !ghostActive && this.ghostSys.canSplit(now);
 
     if (ghostActive) {
-      // Two short arcs orbiting around the hero — “tethered” look.
       const tau = Math.PI * 2;
       const spin = (now / 600) % tau;
-      const arc = Math.PI / 3; // 60°
+      const arc = Math.PI / 3;
       gfx.lineStyle(2, ghostColor, 0.7);
       this.strokeArc(gfx, x, y, baseR, spin, spin + arc);
       this.strokeArc(gfx, x, y, baseR, spin + Math.PI, spin + Math.PI + arc);
@@ -878,13 +982,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (ready) {
-      // Pulsing bright halo ring.
       const pulse = 0.5 + 0.5 * Math.sin(now / 220);
       const r = baseR + pulse * 1.6;
       gfx.lineStyle(2.2, ghostColor, 0.55 + pulse * 0.35);
       gfx.strokeCircle(x, y, r);
 
-      // Orbiting spark — small dot rotating around hero.
       const ang = (now / 700) % (Math.PI * 2);
       const sx = x + Math.cos(ang) * baseR;
       const sy = y + Math.sin(ang) * baseR;
@@ -893,13 +995,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Cooldown: dim recharge arc filling clockwise from top.
     const ratio = this.ghostSys.getCooldownRatio(now);
     if (ratio <= 0) return;
     const start = -Math.PI / 2;
     const end = start + Math.PI * 2 * ratio;
     gfx.lineStyle(1.8, ghostColor, 0.35);
-    gfx.strokeCircle(x, y, baseR); // faint full track
+    gfx.strokeCircle(x, y, baseR);
     gfx.lineStyle(2, ghostColor, 0.75);
     this.strokeArc(gfx, x, y, baseR, start, end);
   }
@@ -917,9 +1018,12 @@ export class GameScene extends Phaser.Scene {
     gfx.strokePath();
   }
 
-  // T3: in-round respawn ---------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Rewarded continue
+  // ---------------------------------------------------------------------------
 
   applyContinue(): void {
+    if (this.phase !== "gameover") return;
     const safeCell = this.findSafeRespawnCell();
     const worldPos = this.grid.cellToWorld(safeCell);
 
@@ -930,17 +1034,15 @@ export class GameScene extends Phaser.Scene {
     this.hero.velocity = { x: 0, y: 0 };
 
     this.trailSys.clearTrail(this.hero.id);
-
     this.territorySys.shrinkOwner(this.hero.id, ADS.continueRetainTerritoryPct);
 
-    this.roundActive = true;
+    this.phase = "playing";
     this.roundEndEmitted = false;
 
     yandex.gameplayStart();
-
     this.territoryDirty = true;
+    this.setupPlayCamera();
 
-    this.scene.resume("Game");
     this.scene.launch("UI", { heroId: this.hero.id });
   }
 
@@ -977,7 +1079,7 @@ export class GameScene extends Phaser.Scene {
     return { cx: bestCx, cy: bestCy };
   }
 
-  // -------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   shutdown(): void {
     this.game.events.off("pause:toggle", this.handlePauseToggle, this);
@@ -994,33 +1096,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Pause handling — T2
-  // NOTE: T3 will add applyContinue() below this section.
+  // Pause handling
   // ---------------------------------------------------------------------------
 
   private handlePauseToggle(active: boolean): void {
+    if (this.phase !== "playing") return;
     if (active) {
       if (this.isPaused) return;
       this.isPaused = true;
       this.pauseStartMs = this.time.now;
-      this.roundActive = false;
     } else {
       if (!this.isPaused) return;
       this.isPaused = false;
-      // Compensate roundStartMs so elapsed time excludes pause duration.
       const pausedDurationMs = this.time.now - this.pauseStartMs;
       this.roundStartMs += pausedDurationMs;
-      if (!this.roundEndEmitted && this.hero.alive) {
-        this.roundActive = true;
-      }
     }
   }
 
   private handlePauseMenu(): void {
-    this.roundActive = false;
-    this.roundEndEmitted = true;
+    if (this.phase !== "playing") return;
     yandex.gameplayStop();
     this.scene.stop("UI");
-    this.scene.start("Menu");
+    this.exitToDemo();
   }
 }

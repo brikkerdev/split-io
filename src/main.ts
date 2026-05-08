@@ -4,13 +4,17 @@ import "@ui/styles/hud.css";
 import "@ui/styles/menu.css";
 import "@ui/styles/gameover.css";
 import "@ui/styles/upgrade.css";
+import "@ui/styles/skins.css";
+import "@ui/styles/achievements.css";
+import "@ui/styles/settings.css";
+import "@ui/styles/leaderboard.css";
+import "@ui/styles/daily.css";
+import "@ui/styles/pause.css";
 
 import Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "@config/game";
 import { BootScene } from "@scenes/BootScene";
-import { GameOverScene } from "@scenes/GameOverScene";
 import { GameScene } from "@scenes/GameScene";
-import { MenuScene } from "@scenes/MenuScene";
 import { PreloadScene } from "@scenes/PreloadScene";
 import { UIScene } from "@scenes/UIScene";
 import { yandex } from "@sdk/yandex";
@@ -21,7 +25,7 @@ async function bootstrap(): Promise<void> {
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent: "game",
-    backgroundColor: "#000000",
+    backgroundColor: "#f7f4ee",
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -37,7 +41,7 @@ async function bootstrap(): Promise<void> {
       antialias: true,
       roundPixels: true,
     },
-    scene: [BootScene, PreloadScene, MenuScene, GameScene, UIScene, GameOverScene],
+    scene: [BootScene, PreloadScene, GameScene, UIScene],
   };
 
   const game = new Phaser.Game(config);
