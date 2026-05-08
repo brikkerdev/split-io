@@ -1,0 +1,32 @@
+{
+  "name": "yandex-game-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && tsx scripts/validate-yandex.ts",
+    "preview": "vite preview",
+    "pack": "npm run build && tsx scripts/pack.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "lint": "biome check src tests scripts",
+    "lint:fix": "biome check --write src tests scripts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@phosphor-icons/web": "^2.1.2",
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@playwright/test": "^1.49.0",
+    "@types/archiver": "^6.0.4",
+    "@types/node": "^22.10.0",
+    "archiver": "^7.0.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+.env
+.env.local
+.vite/
+coverage/
+playwright-report/
+test-results/
+.claude/mcp-servers/*/auth/
+.claude/mcp-servers/*/logs/
+.claude/mcp-servers/*/node_modules/
+.claude/mcp-servers/*/dist/
+.claude/settings.local.json
+*.zip

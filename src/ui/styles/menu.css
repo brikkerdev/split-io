@@ -1,0 +1,204 @@
+@import './vars.css';
+
+/* ── Menu screen ──────────────────────────────────────────── */
+#menu-screen {
+  background: transparent;
+}
+
+.menu-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(20px, 3.5vh, 40px);
+  padding: var(--safe);
+  width: 100%;
+  max-width: 600px;
+}
+
+/* ── Logo ─────────────────────────────────────────────────── */
+.menu-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.menu-logo__title {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(48px, 8vw, 96px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1;
+}
+.menu-logo__best {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(13px, 1.8vw, 17px);
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* ── Play button ──────────────────────────────────────────── */
+.menu-play-btn {
+  width: clamp(200px, 40vw, 320px);
+  height: clamp(52px, 7vh, 68px);
+  font-size: clamp(16px, 2.2vw, 20px);
+  font-weight: 700;
+  border-radius: 12px;
+  letter-spacing: 0.01em;
+}
+
+/* ── Daily reward ─────────────────────────────────────────── */
+.menu-daily-btn {
+  width: clamp(180px, 34vw, 280px);
+  height: clamp(40px, 5.5vh, 54px);
+  font-size: clamp(12px, 1.6vw, 15px);
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
+  color: var(--text-dim);
+  gap: 8px;
+}
+.menu-daily-btn:hover {
+  background: #fefdf9;
+  box-shadow: 0 6px 18px rgba(240, 217, 127, 0.3);
+}
+.menu-daily-btn.has-reward {
+  border-color: var(--yellow);
+  color: var(--text);
+}
+.menu-daily-btn.has-reward i {
+  color: #c9a020;
+}
+.menu-daily-btn .daily-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  display: none;
+  flex-shrink: 0;
+}
+.menu-daily-btn.has-reward .daily-dot {
+  display: inline-block;
+}
+
+/* ── Secondary buttons row ────────────────────────────────── */
+.menu-secondary-row {
+  display: flex;
+  gap: clamp(10px, 1.8vw, 20px);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.menu-icon-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: clamp(60px, 9.5vw, 84px);
+  padding: clamp(10px, 1.5vh, 16px) 0;
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-card);
+  transition: background var(--transition), box-shadow var(--transition), transform 80ms ease-out;
+}
+.menu-icon-btn:hover {
+  background: var(--btn-hover);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+.menu-icon-btn:active {
+  transform: scale(0.95);
+  background: var(--btn-press);
+}
+.menu-icon-btn__glyph {
+  font-size: clamp(20px, 3.2vw, 30px);
+  line-height: 1;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.menu-icon-btn__label {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(9px, 1.1vw, 12px);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  word-break: break-word;
+  max-width: 72px;
+  line-height: 1.2;
+}
+
+/* ── Modal overlay ────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: auto;
+  animation: fade-in 200ms ease;
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.modal-box {
+  position: relative;
+  padding: clamp(24px, 4vh, 40px) clamp(24px, 4vw, 48px);
+  max-width: min(520px, 90vw);
+  width: 100%;
+  animation: scale-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes scale-in {
+  from { transform: scale(0.9); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.modal-title {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(18px, 2.8vw, 24px);
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: clamp(14px, 2vh, 24px);
+  text-align: center;
+}
+.modal-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  pointer-events: auto;
+  line-height: 1;
+  transition: color var(--transition);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.modal-close-btn:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.05);
+}
+.modal-body {
+  color: var(--text-dim);
+  font-size: clamp(14px, 1.8vw, 17px);
+  text-align: center;
+  line-height: 1.6;
+}
+.modal-actions {
+  margin-top: clamp(14px, 2vh, 24px);
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.modal-actions .btn {
+  padding: 12px 28px;
+  font-size: clamp(13px, 1.6vw, 16px);
+}

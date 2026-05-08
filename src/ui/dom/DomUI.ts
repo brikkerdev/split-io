@@ -1,0 +1,323 @@
+/**
+ * DomUI — central controller for HTML overlay UI.
+ * Owns the #ui-overlay div, mounts/unmounts screens.
+ * Called from Phaser scenes via static methods.
+ */
+import { DomHUD } from "./DomHUD";
+import { DomMenu } from "./DomMenu";
+import { DomGameOver } from "./DomGameOver";
+import { DomUpgradeModal } from "./DomUpgradeModal";
+import { DomPause } from "./DomPause";
+import { DomSkinsModal } from "./DomSkinsModal";
+import { DomSettingsModal } from "./DomSettingsModal";
+import { DomAchievementsModal } from "./DomAchievementsModal";
+import { DomLeaderboardModal } from "./DomLeaderboardModal";
+import { DomDailyModal } from "./DomDailyModal";
+import { AUDIO } from "@config/audio";
+import { GameEvents } from "@events/GameEvents";
+import type { RoundBreakdown } from "@gametypes/round";
+import type { UpgradeOfferPayload } from "@gametypes/events";
+
+// Singleton instance
+let instance: DomUI | null = null;
+
+export class DomUI {
+  private hud: DomHUD | null = null;
+  private menu: DomMenu | null = null;
+  private gameOver: DomGameOver | null = null;
+  private upgradeModal: DomUpgradeModal | null = null;
+  private pauseModal: DomPause | null = null;
+  private skinsModal: DomSkinsModal | null = null;
+  private settingsModal: DomSettingsModal | null = null;
+  private achievementsModalEl: HTMLElement | null = null;
+  private leaderboardModal: DomLeaderboardModal | null = null;
+  private dailyModal: DomDailyModal | null = null;
+  private pauseGame: Phaser.Game | null = null;
+  private onPauseToggle: ((active: boolean) => void) | null = null;
+
+  static get(): DomUI {
+    if (!instance) instance = new DomUI();
+    return instance;
+  }
+
+  // ── Overlay init ──────────────────────────────────────────
+
+  /**
+   * Ensure #ui-overlay exists and is positioned over canvas.
+   * Must be called before any screen is mounted.
+   */
+  static ensureOverlay(game: Phaser.Game): void {
+    let overlay = document.getElementById("ui-overlay");
+    if (overlay) {
+      DomUI.attachSfxDelegation(game, overlay);
+      return;
+    }
+
+    overlay = document.createElement("div");
+    overlay.id = "ui-overlay";
+
+    const parent = game.canvas.parentElement ?? document.body;
+    parent.style.position = "relative";
+    parent.appendChild(overlay);
+
+    DomUI.attachSfxDelegation(game, overlay);
+  }
+
+  private static sfxAttached = false;
+  private static attachSfxDelegation(game: Phaser.Game, overlay: HTMLElement): void {
+    if (DomUI.sfxAttached) return;
+    DomUI.sfxAttached = true;
+
+    const playSfx = (key: string, volume: number): void => {
+      try {
+        if (game.cache.audio.exists(key)) {
+          game.sound.play(key, { volume });
+        }
+      } catch { /* silent */ }
+    };
+
+    overlay.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("button, [role='button'], .btn, .card")) {
+        playSfx(AUDIO.sfx.uiClick, 0.55);
+      }
+    });
+
+    overlay.addEventListener(
+      "mouseenter",
+      (e) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+        if (target.matches?.("button, [role='button'], .btn, .card")) {
+          playSfx(AUDIO.sfx.uiHover, 0.3);
+        }
+      },
+      true,
+    );
+  }
+
+  // ── HUD ───────────────────────────────────────────────────
+
+  mountHUD(game: Phaser.Game, gameEvents: Phaser.Events.EventEmitter, heroId = 0): void {
+    DomUI.ensureOverlay(game);
+    this.dismountHUD();
+
+    this.hud = new DomHUD();
+    this.hud.setHeroId(heroId);
+    this.hud.mount(game, gameEvents);
+
+    // Global pause:toggle subscription
+    this.pauseGame = game;
+    this.onPauseToggle = (active: boolean) => {
+      if (active) {
+        this.mountPause(game);
+      } else {
+        this.dismountPause();
+      }
+    };
+    game.events.on("pause:toggle", this.onPauseToggle);
+
+    // Bridge upgrade:offer from game events → upgrade modal
+    gameEvents.on(GameEvents.UpgradeOffer, (payload: UpgradeOfferPayload) => {
+      this.showUpgradeModal(game, gameEvents, payload);
+    });
+
+    // Dismiss hint on first input
+    gameEvents.once("input:firstmove", () => {
+      this.hud?.dismissHint();
+    });
+  }
+
+  dismountHUD(): void {
+    if (this.pauseGame && this.onPauseToggle) {
+      this.pauseGame.events.off("pause:toggle", this.onPauseToggle);
+      this.onPauseToggle = null;
+      this.pauseGame = null;
+    }
+    this.dismountPause();
+    this.hud?.unmount();
+    this.hud = null;
+    this.dismountUpgradeModal();
+  }
+
+  // ── Pause ──────────────────────────────────────────────────
+
+  mountPause(game: Phaser.Game): void {
+    if (this.pauseModal) return;
+    this.pauseModal = new DomPause(
+      () => {
+        game.events.emit("pause:toggle", false);
+      },
+      () => {
+        this.dismountPause();
+        // Let GameScene handle navigation via its own pause listener
+        game.events.emit("pause:menu");
+      },
+    );
+    this.pauseModal.mount();
+  }
+
+  dismountPause(): void {
+    this.pauseModal?.unmount();
+    this.pauseModal = null;
+  }
+
+  // ── Menu ──────────────────────────────────────────────────
+
+  mountMenu(game: Phaser.Game, onPlay: () => void): void {
+    DomUI.ensureOverlay(game);
+    this.dismountMenu();
+
+    this.menu = new DomMenu(onPlay);
+    this.menu.mount(game);
+  }
+
+  dismountMenu(): void {
+    this.menu?.unmount();
+    this.menu = null;
+  }
+
+  // ── GameOver ──────────────────────────────────────────────
+
+  mountGameOver(
+    game: Phaser.Game,
+    breakdown: RoundBreakdown,
+    isDeath: boolean,
+    onContinue: () => Promise<void>,
+    onRestart: () => Promise<void>,
+    onMenu: () => void,
+  ): void {
+    DomUI.ensureOverlay(game);
+    this.dismountGameOver();
+
+    this.gameOver = new DomGameOver();
+    this.gameOver.mount(game, { breakdown, isDeath, onContinue, onRestart, onMenu });
+  }
+
+  dismountGameOver(): void {
+    this.gameOver?.unmount();
+    this.gameOver = null;
+  }
+
+  // ── Upgrade modal ─────────────────────────────────────────
+
+  private showUpgradeModal(
+    game: Phaser.Game,
+    gameEvents: Phaser.Events.EventEmitter,
+    payload: UpgradeOfferPayload,
+  ): void {
+    if (this.upgradeModal) return;
+
+    // Pause game while choosing
+    game.events.emit("pause:toggle", true);
+
+    const modal = new DomUpgradeModal();
+    this.upgradeModal = modal;
+
+    modal.show(
+      payload,
+      (id) => {
+        game.events.emit(GameEvents.UpgradeApplied, { id });
+        gameEvents.emit(GameEvents.UpgradeApplied, { id });
+      },
+      () => {
+        this.upgradeModal = null;
+        game.events.emit("pause:toggle", false);
+      },
+    );
+  }
+
+  dismountUpgradeModal(): void {
+    this.upgradeModal?.dismiss();
+    this.upgradeModal = null;
+  }
+
+  // ── Skins modal ───────────────────────────────────────────
+
+  mountSkinsModal(onClose: () => void): void {
+    if (this.skinsModal) return;
+    this.skinsModal = new DomSkinsModal(() => {
+      this.skinsModal = null;
+      onClose();
+    });
+    this.skinsModal.mount();
+  }
+
+  dismountSkinsModal(): void {
+    this.skinsModal?.unmount();
+    this.skinsModal = null;
+  }
+
+  // ── Settings modal ────────────────────────────────────────
+
+  mountSettingsModal(game: Phaser.Game, onClose: () => void): void {
+    if (this.settingsModal) return;
+    this.settingsModal = new DomSettingsModal(game, () => {
+      this.settingsModal = null;
+      onClose();
+    });
+    this.settingsModal.mount();
+  }
+
+  dismountSettingsModal(): void {
+    this.settingsModal?.unmount();
+    this.settingsModal = null;
+  }
+
+  // ── Achievements modal ────────────────────────────────────
+
+  mountAchievementsModal(): void {
+    this.dismountAchievementsModal();
+    const overlay = document.getElementById("ui-overlay");
+    if (!overlay) return;
+    const modal = new DomAchievementsModal(() => this.dismountAchievementsModal());
+    this.achievementsModalEl = modal.getElement();
+    overlay.appendChild(this.achievementsModalEl);
+  }
+
+  dismountAchievementsModal(): void {
+    this.achievementsModalEl?.remove();
+    this.achievementsModalEl = null;
+  }
+
+  // ── Leaderboard modal ─────────────────────────────────────
+
+  mountLeaderboardModal(): void {
+    if (this.leaderboardModal) return;
+    const overlay = document.getElementById("ui-overlay");
+    if (!overlay) return;
+    this.leaderboardModal = new DomLeaderboardModal(() => {
+      this.dismountLeaderboardModal();
+    });
+    this.leaderboardModal.mount(overlay);
+  }
+
+  dismountLeaderboardModal(): void {
+    this.leaderboardModal?.unmount();
+    this.leaderboardModal = null;
+  }
+
+  // ── Daily modal ───────────────────────────────────────────
+
+  mountDailyModal(onClose: () => void, onClaimed: () => void): void {
+    if (this.dailyModal) return;
+    const overlay = document.getElementById("ui-overlay");
+    if (!overlay) return;
+    this.dailyModal = new DomDailyModal(
+      () => {
+        this.dismountDailyModal();
+        onClose();
+      },
+      () => {
+        onClaimed();
+      },
+    );
+    this.dailyModal.mount(overlay);
+  }
+
+  dismountDailyModal(): void {
+    this.dailyModal?.unmount();
+    this.dailyModal = null;
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "chatgpt-images": {
+      "type": "stdio",
+      "command": "node",
+      "args": [".claude/mcp-servers/chatgpt-images/dist/index.js"],
+      "env": {}
+    }
+  }
+}

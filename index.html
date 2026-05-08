@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Split.io</title>
+
+    <!-- Manrope: cyrillic + latin + extended latin (TR diacritics) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Phosphor Icons loaded via main.ts import -->
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        height: 100%;
+        background: #f7f4ee;
+        overflow: hidden;
+        touch-action: none;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #game {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+      canvas { display: block; }
+
+      /* ── DOM UI overlay ─────────────────────────────────── */
+      #ui-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: 10;
+      }
+    </style>
+
+    <script src="https://yandex.ru/games/sdk/v2"></script>
+  </head>
+  <body>
+    <div id="game">
+      <!-- #ui-overlay is injected by DomUI.ensureOverlay() after Phaser canvas exists -->
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

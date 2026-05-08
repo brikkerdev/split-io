@@ -1,0 +1,6 @@
+node_modules/
+dist/
+auth/
+logs/
+*.log
+tests/manual-out.png

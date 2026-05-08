@@ -1,0 +1,29 @@
+/* Pastel minimalism palette — mirrors src/config/palette.ts */
+:root {
+  --bg:           #f7f4ee;
+  --mint:         #a8e0c5;
+  --peach:        #f5c4a3;
+  --lavender:     #c9b8e8;
+  --lilac:        #e3a8c4;
+  --yellow:       #f0d97f;
+  --danger:       #e8856a;
+  --success:      #a8e0c5;
+  --warning:      #f0d97f;
+  --text:         #2a2a2e;
+  --text-dim:     #6b6b72;
+  --text-muted:   #9a9aa5;
+  --panel-bg:     #ffffff;
+  --panel-border: rgba(0, 0, 0, 0.06);
+  --btn-bg:       #ffffff;
+  --btn-hover:    #f5f3ef;
+  --btn-press:    #edeae4;
+  --overlay-dim:  rgba(42, 42, 46, 0.45);
+
+  --shadow-card:  0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.08);
+
+  --safe:       clamp(16px, 2.5vw, 32px);
+  --radius:     14px;
+  --radius-btn: 10px;
+  --transition: 140ms ease-out;
+}

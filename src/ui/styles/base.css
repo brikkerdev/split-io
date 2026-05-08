@@ -1,0 +1,203 @@
+@import './vars.css';
+
+/* ── Overlay root ─────────────────────────────────────────── */
+#ui-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  z-index: 10;
+}
+
+/* Screens fill the overlay but are hidden by default */
+.ui-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.ui-screen.visible {
+  opacity: 1;
+}
+.ui-screen.interactive {
+  pointer-events: auto;
+}
+
+/* ── Panel ────────────────────────────────────────────────── */
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
+}
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(14px, 1.8vw, 17px);
+  cursor: pointer;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-btn);
+  background: var(--btn-bg);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+  transition: background var(--transition), box-shadow var(--transition), transform 80ms ease-out;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+}
+.btn:hover {
+  background: var(--btn-hover);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+.btn:active {
+  background: var(--btn-press);
+  transform: scale(0.97);
+  box-shadow: var(--shadow-card);
+}
+
+.btn-primary {
+  background: var(--mint);
+  border-color: transparent;
+  color: var(--text);
+  box-shadow: 0 4px 14px rgba(168, 224, 197, 0.45);
+}
+.btn-primary:hover {
+  background: #95d6b5;
+  box-shadow: 0 6px 18px rgba(168, 224, 197, 0.55);
+}
+.btn-primary:active {
+  background: #82ccaa;
+}
+
+.btn-danger {
+  background: var(--peach);
+  border-color: transparent;
+  color: var(--text);
+}
+.btn-danger:hover {
+  background: #f0b48e;
+  box-shadow: 0 6px 16px rgba(245, 196, 163, 0.5);
+}
+
+/* ── Modal overlay ────────────────────────────────────────── */
+.modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  z-index: 20;
+}
+.modal-box {
+  position: relative;
+  padding: clamp(24px, 3.5vh, 40px) clamp(24px, 4vw, 48px);
+  width: min(90vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.modal-title {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(20px, 3vw, 28px);
+  font-weight: 800;
+  color: var(--text);
+  text-align: center;
+}
+.modal-body {
+  font-size: clamp(13px, 1.7vw, 16px);
+  color: var(--text-dim);
+  text-align: center;
+}
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.modal-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-muted);
+  line-height: 1;
+  padding: 4px 6px;
+}
+.modal-close-btn:hover {
+  color: var(--text);
+}
+
+/* ── Pause screen ─────────────────────────────────────────── */
+#pause-screen {
+  background: var(--overlay-dim);
+}
+.pause-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(14px, 2.5vh, 24px);
+  padding: clamp(32px, 5vh, 56px) clamp(32px, 5vw, 64px);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
+  min-width: min(80vw, 320px);
+}
+.pause-title {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 800;
+  color: var(--text);
+}
+.pause-btn {
+  width: 100%;
+  height: clamp(46px, 6vh, 58px);
+  font-size: clamp(14px, 1.9vw, 17px);
+}
+
+/* ── HUD pause button ─────────────────────────────────────── */
+.hud-pause-btn {
+  position: absolute;
+  top: var(--safe);
+  left: var(--safe);
+  width: clamp(38px, 5vw, 48px);
+  height: clamp(38px, 5vw, 48px);
+  border-radius: 50%;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(16px, 2.2vw, 22px);
+  color: var(--text-dim);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background var(--transition), transform 80ms ease-out;
+  z-index: 5;
+}
+.hud-pause-btn:hover {
+  background: var(--btn-hover);
+}
+.hud-pause-btn:active {
+  background: var(--btn-press);
+  transform: scale(0.93);
+}
