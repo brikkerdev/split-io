@@ -33,6 +33,7 @@ import type {
   TerritoryCapturedPayload,
 } from "@gametypes/events";
 import type { Vec2 } from "@gametypes/geometry";
+import { traceContours } from "@systems/ContourTracer";
 import { t } from "@ui/dom/i18n";
 
 const DEPTH_BG = 0;
@@ -469,6 +470,66 @@ export class GameScene extends Phaser.Scene {
     this.territoryDirty = true;
   }
 
+  private scheduleBotRespawn(id: number): void {
+    const delayMs = 800 + Math.random() * 1200;
+    this.time.delayedCall(delayMs, () => {
+      const bot = this.botAI.getAll().find((b) => b.id === id);
+      if (!bot || bot.alive) return;
+      const cell = this.pickOffscreenSpawnCell();
+      this.botAI.respawnAt(id, cell);
+      this.territoryDirty = true;
+    });
+  }
+
+  /** Random unowned cell inside the play circle, outside the camera view if possible. */
+  private pickOffscreenSpawnCell(): { cx: number; cy: number } {
+    const r = GRID.startTerritoryRadiusCells;
+    const cellPx = this.grid.cellPx;
+    const innerR = MAP.radiusPx - (r + 2) * cellPx;
+    const view = this.cameras.main.worldView;
+    const padPx = cellPx * (r + 1);
+
+    const isOffscreen = (wx: number, wy: number): boolean => {
+      return (
+        wx < view.x - padPx ||
+        wx > view.right + padPx ||
+        wy < view.y - padPx ||
+        wy > view.bottom + padPx
+      );
+    };
+
+    const isClear = (cx: number, cy: number): boolean => {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const ncx = cx + dx;
+          const ncy = cy + dy;
+          if (!this.grid.inBounds(ncx, ncy)) continue;
+          if (this.grid.ownerOf(ncx, ncy) !== 0) return false;
+        }
+      }
+      return true;
+    };
+
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = Math.sqrt(Math.random()) * innerR;
+      const wx = MAP.centerX + Math.cos(ang) * rad;
+      const wy = MAP.centerY + Math.sin(ang) * rad;
+      if (!isOffscreen(wx, wy)) continue;
+      const { cx, cy } = this.grid.worldToCell({ x: wx, y: wy });
+      if (isClear(cx, cy)) return { cx, cy };
+    }
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = Math.sqrt(Math.random()) * innerR;
+      const wx = MAP.centerX + Math.cos(ang) * rad;
+      const wy = MAP.centerY + Math.sin(ang) * rad;
+      const { cx, cy } = this.grid.worldToCell({ x: wx, y: wy });
+      if (isClear(cx, cy)) return { cx, cy };
+    }
+    return { cx: Math.floor(this.grid.cols / 2), cy: Math.floor(this.grid.rows / 2) };
+  }
+
   private createGraphicsLayers(): void {
     this.bgGfx = this.add.graphics().setDepth(DEPTH_BG);
     this.territoryGfx = this.add.graphics().setDepth(DEPTH_TERRITORY);
@@ -555,7 +616,10 @@ export class GameScene extends Phaser.Scene {
     this.events.on(GameEvents.TrailCut, (payload: { victim: number; killer: number }) => {
       if (payload.victim === this.hero.id) {
         this.handlePlayerDeath("trail_cut");
+        return;
       }
+      const bot = this.botAI.getAll().find((b) => b.id === payload.victim);
+      if (bot) this.scheduleBotRespawn(bot.id);
     });
 
     this.events.on(

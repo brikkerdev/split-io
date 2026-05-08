@@ -190,6 +190,23 @@ export class BotAI {
     return this.bots;
   }
 
+  /** Revive a dead bot at the given cell with a fresh starting territory. */
+  respawnAt(id: number, cell: { cx: number; cy: number }): void {
+    const bot = this.bots.find((b) => b.id === id);
+    if (!bot || bot.alive) return;
+    bot.homeCx = cell.cx;
+    bot.homeCy = cell.cy;
+    bot.pos = this.grid.cellToWorld(cell);
+    bot.heading = Math.random() * Math.PI * 2;
+    bot.speedCellsPerSec = this.speedForProfile(bot.profile);
+    bot.state = "idle";
+    bot.stateElapsed = 0;
+    bot.trailLen = 0;
+    bot.posHistory = [];
+    bot.alive = true;
+    this.claimStartTerritory(bot);
+  }
+
   destroy(): void {
     this.scene.events.off(GameEvents.TerritoryCaptured, undefined, this);
     this.scene.events.off(GameEvents.TrailCut, undefined, this);
