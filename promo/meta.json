@@ -1,0 +1,36 @@
+{
+  "title": {
+    "ru": "Закрась.ио",
+    "en": "Paint.io",
+    "tr": "Boya.io"
+  },
+  "title_full": {
+    "ru": "Закрась.ио — захвати арену",
+    "en": "Paint.io — capture the arena",
+    "tr": "Boya.io — arenayı ele geçir"
+  },
+  "category": "arcade",
+  "subcategory": "io",
+  "tags": [
+    "io",
+    "захват территории",
+    "аркада",
+    "казуальная",
+    "закрашивание",
+    "пастель",
+    "скины",
+    "лидерборд",
+    "однопользовательская",
+    "для детей",
+    "мобильная",
+    "агарио"
+  ],
+  "keywords": {
+    "ru": "ио, аркада, захват территории, paper io, агарио, змейка, закрашивание, скины, казуальная",
+    "en": "io, arcade, territory capture, paper io, agar io, snake, painting, skins, casual",
+    "tr": "io, arcade, bölge ele geçirme, paper io, agar io, yılan, boyama, kostümler, casual"
+  },
+  "orientation": "both",
+  "age_rating": "6+",
+  "languages": ["ru", "en", "tr"]
+}

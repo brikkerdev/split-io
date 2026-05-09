@@ -1,14 +1,18 @@
 import { SKINS } from "@config/skins";
+import { patternCss } from "@config/skinPatterns";
 import { saves } from "@systems/SaveManager";
+import { GameEvents } from "@events/GameEvents";
 import type { SaveV1 } from "@/types/save";
 import { t } from "./i18n";
 
 export class DomSkinsModal {
   private overlay: HTMLElement;
   private onClose: () => void;
+  private game: Phaser.Game | null;
 
-  constructor(onClose: () => void) {
+  constructor(onClose: () => void, game: Phaser.Game | null = null) {
     this.onClose = onClose;
+    this.game = game;
     this.overlay = this.build();
   }
 
@@ -69,21 +73,30 @@ export class DomSkinsModal {
     grid.innerHTML = "";
     const save = saves.get<SaveV1>();
 
-    for (const skin of SKINS) {
+    // Sort: starter → owned shop → affordable shop → owned daily → locked daily → locked shop
+    const sortable = [...SKINS].map((skin, idx) => ({ skin, idx }));
+    sortable.sort((a, b) => {
+      const ao = save.unlockedSkins.includes(a.skin.id) ? 0 : 1;
+      const bo = save.unlockedSkins.includes(b.skin.id) ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      return a.idx - b.idx;
+    });
+
+    for (const { skin } of sortable) {
       const owned = save.unlockedSkins.includes(skin.id);
       const selected = save.selectedSkin === skin.id;
-      const affordable = skin.cost === 0 || save.coins >= skin.cost;
+      const dailyOnly = skin.dailyOnly === true;
+      const affordable = !dailyOnly && (skin.cost === 0 || save.coins >= skin.cost);
 
       const card = document.createElement("div");
       card.className = "skin-card";
       if (selected) card.classList.add("skin-card--selected");
       if (!owned && !affordable) card.classList.add("skin-card--disabled");
+      if (skin.rarity) card.classList.add(`skin-card--${skin.rarity}`);
 
-      const hex = `#${skin.fill.toString(16).padStart(6, "0")}`;
       const swatch = document.createElement("div");
       swatch.className = "skin-swatch";
-      swatch.style.backgroundColor = hex;
-      swatch.style.borderColor = selected ? hex : "transparent";
+      swatch.style.background = patternCss(skin.pattern, skin.fill, skin.fillSecondary);
 
       const nameEl = document.createElement("div");
       nameEl.className = "skin-name";
@@ -98,6 +111,9 @@ export class DomSkinsModal {
       } else if (owned) {
         stateEl.textContent = t("skins_select");
         stateEl.classList.add("skin-state--owned");
+      } else if (dailyOnly) {
+        stateEl.innerHTML = `<i class="ph-fill ph-fire"></i> ${t("skins_daily_only")}`;
+        stateEl.classList.add("skin-state--daily");
       } else {
         stateEl.innerHTML = `<i class="ph ph-coins"></i> ${skin.cost}`;
         if (!affordable) {
@@ -131,6 +147,7 @@ export class DomSkinsModal {
     const owned = save.unlockedSkins.includes(skinId);
 
     if (!owned) {
+      if (skin.dailyOnly) return; // can only be earned via daily streak
       if (save.coins < skin.cost) return;
       saves.patch({
         coins: save.coins - skin.cost,
@@ -140,6 +157,8 @@ export class DomSkinsModal {
     } else {
       saves.patch({ selectedSkin: skinId });
     }
+
+    this.game?.events.emit(GameEvents.SkinChanged, skinId);
 
     const grid = document.getElementById("skins-grid");
     const coinsRow = document.getElementById("skins-coins-row");

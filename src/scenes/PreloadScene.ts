@@ -1,8 +1,5 @@
 import Phaser from "phaser";
 import { AUDIO } from "@config/audio";
-import { GAME_HEIGHT, GAME_WIDTH } from "@config/game";
-import { PALETTE } from "@config/palette";
-import { yandex } from "@sdk/yandex";
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -10,11 +7,16 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.createProgressBar();
+    this.load.on("progress", (v: number) => {
+      window.__splash?.setProgress(v);
+    });
+
+    this.load.on("complete", () => {
+      window.__splash?.setProgress(1);
+    });
 
     const icons = [
       "ic_speed",
-      "ic_homing",
       "ic_split",
       "ic_shield",
       "ic_reserve_a",
@@ -25,6 +27,9 @@ export class PreloadScene extends Phaser.Scene {
     for (const key of icons) {
       this.load.image(key, `images/${key}.png`);
     }
+
+    // Phosphor crown-fill — leader marker.
+    this.load.svg("ic_crown", "icons/crown.svg", { width: 64, height: 64 });
 
     // SFX — ogg primary, m4a Safari fallback. No background music — minimalist .io style.
     const sfx: Array<[string, string]> = [
@@ -48,37 +53,6 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   create(): void {
-    yandex.gameReady();
     this.scene.start("Game");
-  }
-
-  private createProgressBar(): void {
-    const cx = GAME_WIDTH / 2;
-    const cy = GAME_HEIGHT / 2;
-
-    const barW = 400;
-    const barH = 20;
-
-    this.add
-      .rectangle(cx, cy, barW + 4, barH + 4, PALETTE.gridLine)
-      .setStrokeStyle(1, PALETTE.ui.accent);
-
-    const fill = this.add
-      .rectangle(cx - barW / 2, cy, 0, barH, PALETTE.ui.accent)
-      .setOrigin(0, 0.5);
-
-    const label = this.add
-      .text(cx, cy - 36, "SPLIT.IO", {
-        fontSize: "32px",
-        color: "#21f0ff",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-
-    void label;
-
-    this.load.on("progress", (v: number) => {
-      fill.width = barW * v;
-    });
   }
 }

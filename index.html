@@ -2,26 +2,45 @@
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <title>Split.io</title>
+    <title>Закрась.ио</title>
+    <script>
+      // Lang detection shared by <title> and splash text. Priority mirrors the
+      // game's Locale system: ?lang= URL param → saved settings.lang → 'ru' default.
+      // We don't read navigator.language here because the Yandex SDK loads async
+      // and provides the canonical lang via URL; using navigator would cause the
+      // splash to show a different language than the actual game UI.
+      window.__lang = (function () {
+        try {
+          var q = (location.search.match(/[?&]lang=([a-z]{2})/i) || [])[1];
+          if (q) {
+            var ql = q.toLowerCase();
+            if (ql === 'ru' || ql === 'en' || ql === 'tr') return ql;
+          }
+        } catch (_) {}
+        try {
+          var raw = localStorage.getItem('save');
+          if (raw) {
+            var s = JSON.parse(raw);
+            var l = s && s.settings && s.settings.lang;
+            if (l === 'ru' || l === 'en' || l === 'tr') return l;
+          }
+        } catch (_) {}
+        return 'ru';
+      })();
+    </script>
 
-    <!-- Manrope: cyrillic + latin + extended latin (TR diacritics) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-
-    <!-- Phosphor Icons loaded via main.ts import -->
+    <!-- Phosphor Icons + Manrope @font-face are loaded via main.ts (bundled CSS).
+         Vite hashes and copies woff2 files next to the CSS, so absolute /fonts/...
+         paths must NOT be used here — Yandex serves the build from a subpath. -->
 
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       html, body {
         height: 100%;
-        background: #f7f4ee;
+        background: #cbc8c3;
         overflow: hidden;
         touch-action: none;
       }
@@ -30,6 +49,8 @@
         align-items: center;
         justify-content: center;
       }
+      /* Fill the entire viewport so the canvas occupies all available space
+         inside the Yandex iframe (no letterbox bars). */
       #game {
         position: relative;
         width: 100vw;
@@ -45,11 +66,163 @@
         overflow: hidden;
         z-index: 10;
       }
+
+      /* ── Splash screen ──────────────────────────────────── */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        background: #cbc8c3;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        font-family: 'Manrope', system-ui, sans-serif;
+        transition: opacity 250ms ease;
+        pointer-events: auto;
+      }
+      /* Hide splash text until Manrope glyphs are ready to avoid font-swap flicker */
+      #splash:not(.fonts-ready) #splash-title,
+      #splash:not(.fonts-ready) #splash-loading {
+        visibility: hidden;
+      }
+      #splash.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #splash-title {
+        font-size: clamp(32px, 6vw, 56px);
+        font-weight: 700;
+        color: #2a2a2e;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+      #splash-title .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #a8e0c5;
+        margin: 0 6px 4px;
+        vertical-align: middle;
+      }
+
+      #splash-bar-wrap {
+        width: clamp(200px, 50vw, 280px);
+        height: 4px;
+        background: #e8e4dc;
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      #splash-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: #a8e0c5;
+        border-radius: 2px;
+        transition: width 80ms linear;
+      }
+
+      @keyframes splash-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+      #splash-loading {
+        font-size: 13px;
+        font-weight: 500;
+        color: #6b6b72;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        animation: splash-pulse 1.8s ease-in-out infinite;
+      }
     </style>
 
-    <script src="https://yandex.ru/games/sdk/v2"></script>
+    <script>
+      (function () {
+        var fill = null;
+        var splash = null;
+
+        function getEl() {
+          if (!fill) fill = document.getElementById('splash-bar-fill');
+          if (!splash) splash = document.getElementById('splash');
+        }
+
+        var DICT = {
+          ru: { left: 'ЗАКРАСЬ', right: 'ИО', loading: 'Загрузка', title: 'Закрась.ио' },
+          en: { left: 'PAINT', right: 'IO', loading: 'Loading', title: 'Paint.io' },
+          tr: { left: 'BOYA', right: 'IO', loading: 'Yükleniyor', title: 'Boya.io' },
+        };
+
+        var lang = window.__lang || 'ru';
+        var d = DICT[lang] || DICT.ru;
+        try { document.title = d.title; } catch (_) {}
+        try { document.documentElement.lang = lang; } catch (_) {}
+
+        document.addEventListener('DOMContentLoaded', function () {
+          var title = document.getElementById('splash-title');
+          var loading = document.getElementById('splash-loading');
+          if (title) title.innerHTML = d.left + '<span class="dot"></span>' + d.right;
+          if (loading) loading.textContent = d.loading;
+
+          // Reveal splash text only after the Manrope glyphs we actually use are
+          // ready — prevents the system-ui → Manrope swap and per-range re-flows.
+          var splashEl = document.getElementById('splash');
+          var reveal = function () {
+            if (splashEl) splashEl.classList.add('fonts-ready');
+          };
+          var sample = (d.left + d.right + d.loading);
+          if (document.fonts && document.fonts.load) {
+            Promise.race([
+              Promise.all([
+                document.fonts.load('700 1em Manrope', sample),
+                document.fonts.load('500 1em Manrope', sample),
+              ]),
+              new Promise(function (r) { setTimeout(r, 1200); }),
+            ]).then(reveal, reveal);
+          } else {
+            reveal();
+          }
+        });
+
+        window.__splash = {
+          setProgress: function (v) {
+            getEl();
+            if (fill) fill.style.width = (Math.min(1, Math.max(0, v)) * 100) + '%';
+          },
+          hide: function () {
+            getEl();
+            if (!splash) return;
+            splash.classList.add('hidden');
+            splash.addEventListener('transitionend', function handler() {
+              splash.removeEventListener('transitionend', handler);
+              splash.style.display = 'none';
+            });
+          },
+        };
+      })();
+    </script>
+
+    <script>
+      // Yandex SDK posts to window.parent on a tight interval. When the page is
+      // opened standalone (e.g. `vite preview`, direct dist hosting), there is
+      // no parent and the SDK throws unhandled promise rejections every frame,
+      // throttling the main thread to ~10 FPS. Only load it inside an iframe.
+      if (window.parent !== window) {
+        var s = document.createElement('script');
+        s.src = 'https://yandex.ru/games/sdk/v2';
+        document.head.appendChild(s);
+      }
+    </script>
   </head>
   <body>
+    <div id="splash">
+      <div id="splash-title">PAINT<span class="dot"></span>IO</div>
+      <div id="splash-bar-wrap">
+        <div id="splash-bar-fill"></div>
+      </div>
+      <div id="splash-loading">Loading</div>
+    </div>
     <div id="game">
       <!-- #ui-overlay is injected by DomUI.ensureOverlay() after Phaser canvas exists -->
     </div>

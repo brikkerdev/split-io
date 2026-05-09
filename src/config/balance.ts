@@ -4,7 +4,7 @@ export const BALANCE = {
   roundSeconds: 180,
   longRoundSeconds: 300,
 
-  heroBaseSpeedCellsPerSec: 7,
+  heroBaseSpeedCellsPerSec: 10.5,
   heroTurnRateRadPerSec: 6,
   speedUpgradeMult: 0.15,
 
@@ -26,17 +26,19 @@ export const BALANCE = {
   killBonus: 500,
   killWallDeath: true,
 
-  botBaseSpeedCellsPerSec: 6,
+  botBaseSpeedCellsPerSec: 9,
   botAggressorSpeedMult: 1.15,
   botTouristSpeedMult: 0.9,
   botHoarderSpeedMult: 1.0,
+  botCarverSpeedMult: 1.1,
+  botCowardSpeedMult: 0.95,
 
   /** Idle pause before a bot starts its next loop (seconds). */
   botIdleDurationSec: 1.5,
   /** Cells from home centre that counts as "inside home". */
   botHomeRadiusCells: 4,
   /** Max trail length before bot turns back (cells, per profile baseline). */
-  botMaxTrailCells: 30,
+  botMaxTrailCells: 48,
   /** Steering turn rate for bots (radians per second). */
   botTurnRateRadPerSec: 3.5,
 

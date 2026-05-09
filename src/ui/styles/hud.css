@@ -22,26 +22,26 @@
 .hud-score {
   position: absolute;
   top: var(--safe);
-  left: calc(var(--safe) + clamp(48px, 6.5vw, 68px));
+  left: calc(var(--safe) + clamp(40px, 5vw, 56px));
   display: flex;
   flex-direction: column;
   gap: 1px;
   background: var(--mint);
   border: var(--border-sticker);
   border-radius: var(--radius-pill);
-  padding: clamp(6px, 1vh, 10px) clamp(16px, 2.2vw, 24px);
+  padding: clamp(4px, 0.7vh, 7px) clamp(10px, 1.6vw, 16px);
   box-shadow: var(--shadow-sticker);
   pointer-events: none;
 }
 .hud-score__value {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(24px, 3.4vw, 42px);
+  font-size: clamp(16px, 2.4vw, 28px);
   font-weight: 800;
   color: var(--text);
   line-height: 1;
 }
 .hud-score__label {
-  font-size: clamp(9px, 1.1vw, 12px);
+  font-size: clamp(8px, 0.9vw, 10px);
   color: var(--text-dim);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -56,14 +56,14 @@
   gap: 4px;
   background: var(--panel-bg);
   border: var(--border-sticker);
-  border-radius: 16px;
-  padding: clamp(8px, 1.2vh, 12px) clamp(10px, 1.5vw, 16px);
+  border-radius: 12px;
+  padding: clamp(5px, 0.8vh, 8px) clamp(7px, 1.1vw, 11px);
   box-shadow: var(--shadow-sticker);
-  min-width: clamp(150px, 20vw, 230px);
+  min-width: clamp(110px, 15vw, 170px);
   pointer-events: none;
 }
 .hud-leaderboard__label {
-  font-size: clamp(9px, 1.1vw, 11px);
+  font-size: clamp(8px, 0.9vw, 10px);
   color: var(--text-muted);
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -81,11 +81,11 @@
 }
 .hud-lb__row {
   display: grid;
-  grid-template-columns: clamp(16px, 1.8vw, 22px) auto 1fr auto;
+  grid-template-columns: clamp(12px, 1.4vw, 18px) auto 1fr auto;
   align-items: center;
-  gap: clamp(4px, 0.7vw, 8px);
+  gap: clamp(3px, 0.5vw, 6px);
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  font-size: clamp(11px, 1.4vw, 15px);
+  font-size: clamp(9px, 1.1vw, 12px);
   font-weight: 600;
   color: var(--text);
   padding: 3px 4px;
@@ -127,6 +127,16 @@
   font-variant-numeric: tabular-nums;
   font-weight: 800;
   color: var(--text);
+  display: inline-block;
+  transform-origin: center;
+}
+@keyframes pct-bounce {
+  0%   { transform: scale(1); text-shadow: none; }
+  45%  { transform: scale(1.15); text-shadow: 0 0 8px rgba(255, 230, 80, 0.9); }
+  100% { transform: scale(1); text-shadow: none; }
+}
+.hud-lb__pct--bounce {
+  animation: pct-bounce 220ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 .hud-lb__sep {
   text-align: center;
@@ -135,6 +145,60 @@
   letter-spacing: 0.2em;
   padding: 0 4px;
   list-style: none;
+}
+
+/* ── Coin counter — top right, above leaderboard ─────────── */
+.hud-coins {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--yellow);
+  border: var(--border-sticker);
+  border-radius: var(--radius-pill);
+  padding: clamp(3px, 0.6vh, 6px) clamp(8px, 1.2vw, 13px);
+  box-shadow: var(--shadow-sticker);
+  pointer-events: none;
+  margin-right: clamp(6px, 0.9vw, 10px);
+  align-self: flex-start;
+  transition: transform 120ms ease-out;
+}
+.hud-coins__icon {
+  font-size: clamp(10px, 1.3vw, 14px);
+  color: var(--ink);
+  line-height: 1;
+}
+.hud-coins__count {
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(10px, 1.3vw, 14px);
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+@keyframes coin-pulse {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.hud-coins--pulse {
+  animation: coin-pulse 150ms ease-out;
+}
+
+/* ── Flying coin particle ─────────────────────────────────── */
+.coin-flyer {
+  position: absolute;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  font-size: clamp(11px, 1.4vw, 14px);
+  font-weight: 800;
+  color: var(--ink);
+  background: var(--yellow);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-pill);
+  padding: 2px 7px;
+  box-shadow: 0 0 8px rgba(240, 217, 127, 0.8), 2px 2px 0 var(--ink);
+  pointer-events: none;
+  z-index: 50;
+  transition: transform 600ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 600ms ease-in;
 }
 
 /* ── Split cooldown ring — bottom right ───────────────────── */
@@ -150,39 +214,78 @@
 }
 .hud-split__ring {
   position: relative;
-  width: clamp(72px, 9vw, 96px);
-  height: clamp(72px, 9vw, 96px);
+  width: clamp(54px, 7vw, 74px);
+  height: clamp(54px, 7vw, 74px);
   background: var(--panel-bg);
   border: var(--border-sticker);
   border-radius: 50%;
   box-shadow: var(--shadow-sticker-lg);
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+.hud-split__ring.ready {
+  background: var(--mint);
+  animation: split-ring-bob 1100ms ease-in-out infinite;
+  will-change: transform;
+}
+.hud-split__ring.ready::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px solid var(--mint-dark);
+  opacity: 0;
+  animation: split-ring-halo 1400ms ease-out infinite;
+  pointer-events: none;
+}
+@keyframes split-ring-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-3px) scale(1.04); }
+}
+@keyframes split-ring-halo {
+  0%   { transform: scale(1);    opacity: 0.85; }
+  80%  { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1.35); opacity: 0; }
 }
 .hud-split__ring svg {
-  width: 100%;
-  height: 100%;
+  width: 128%;
+  height: 128%;
   transform: rotate(-90deg);
   position: absolute;
-  inset: 0;
+  inset: -14%;
+  overflow: visible;
+  pointer-events: none;
 }
 .hud-split__ring-bg {
   fill: none;
-  stroke: rgba(0, 0, 0, 0.07);
-  stroke-width: 6;
+  stroke: rgba(42, 42, 46, 0.18);
+  stroke-width: 7;
 }
 .hud-split__ring-fill {
   fill: none;
   stroke: var(--mint-dark);
-  stroke-width: 6;
+  stroke-width: 7;
   stroke-linecap: round;
+  filter: drop-shadow(0 0 4px rgba(126, 202, 168, 0.55));
   transition: stroke-dashoffset 100ms linear, stroke 200ms ease;
 }
 .hud-split__ring.ready .hud-split__ring-fill {
   stroke: var(--mint-dark);
   animation: ring-pulse 900ms ease-in-out infinite alternate;
+  will-change: opacity;
 }
 @keyframes ring-pulse {
   from { opacity: 0.7; }
   to   { opacity: 1; }
+}
+.hud-split__ring.ready .hud-split__icon {
+  animation: split-icon-zap 900ms ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+@keyframes split-icon-zap {
+  0%, 60%, 100% { transform: scale(1) rotate(0); }
+  72%           { transform: scale(1.18) rotate(-8deg); }
+  84%           { transform: scale(1.18) rotate(8deg); }
 }
 .hud-split__label {
   font-family: 'Manrope', 'Inter', system-ui, sans-serif;
@@ -243,6 +346,10 @@
   align-items: center;
   justify-content: center;
   box-shadow: var(--shadow-sticker);
+  will-change: transform;
+  transform: translateZ(0);
+}
+.hud-hint:not(.hidden) .hud-hint__arrow {
   animation: bounce-arrow 700ms ease-in-out infinite alternate;
 }
 @keyframes bounce-arrow {
@@ -267,8 +374,8 @@
   width: 128px;
   height: 128px;
   border-radius: 50%;
-  background: rgba(168, 224, 197, 0.22);
-  border: 2.5px solid rgba(168, 224, 197, 0.55);
+  background: rgba(0, 0, 0, 0.25);
+  border: 2.5px solid rgba(0, 0, 0, 0.45);
   pointer-events: none;
   opacity: 0;
   transition: opacity 160ms ease;
@@ -283,13 +390,19 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(168, 224, 197, 0.55);
-  border: 2.5px solid rgba(42,42,46,0.3);
+  background: rgba(0, 0, 0, 0.45);
+  border: 2.5px solid rgba(0, 0, 0, 0.6);
   transform: translate(-50%, -50%);
   transition: transform 30ms linear;
+  will-change: transform;
 }
 
-/* ── Mobile ───────────────────────────────────────────────── */
+/* ── Floating joystick — touch devices only ───────────────── */
+@media (hover: hover) and (pointer: fine) {
+  /* Desktop: joystick shown programmatically if joystick scheme; CSS keeps it visible */
+}
+
+/* ── Mobile 640px ─────────────────────────────────────────── */
 @media (max-width: 640px) {
   .hud-split__ring {
     border-width: 2px;
@@ -301,5 +414,116 @@
   .hud-leaderboard {
     box-shadow: 3px 3px 0 var(--ink);
     min-width: clamp(130px, 42vw, 200px);
+  }
+}
+
+/* ── Portrait phone (≤480px wide) ────────────────────────── */
+@media (max-width: 480px) {
+  /* HUD top: stack score left, coins+leaderboard stacked right */
+  .hud-top {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    padding-top: var(--mobile-safe-top);
+    padding-right: var(--mobile-safe-r);
+  }
+
+  /* Score: reposition so it doesn't overlap leaderboard */
+  .hud-score {
+    top: var(--mobile-safe-top);
+    left: calc(var(--mobile-safe-l) + 40px);
+    padding: 3px 9px;
+  }
+  .hud-score__value {
+    font-size: clamp(14px, 4.5vw, 20px);
+  }
+
+  /* Leaderboard: compact rank list */
+  .hud-leaderboard {
+    min-width: 0;
+    width: clamp(96px, 36vw, 140px);
+    padding: 4px 6px;
+  }
+  .hud-lb__row {
+    grid-template-columns: 12px auto 1fr auto;
+    gap: 3px;
+    font-size: 9px;
+  }
+  .hud-leaderboard__label {
+    font-size: 8px;
+  }
+
+  /* Coins: smaller, anchored to right (avoid overlap with pause btn) */
+  .hud-coins {
+    padding: 2px 7px;
+    margin-right: 0;
+    align-self: flex-end;
+  }
+  .hud-coins__icon,
+  .hud-coins__count {
+    font-size: clamp(10px, 3vw, 13px);
+  }
+
+  /* Split ring: tap target on bottom-right */
+  .hud-split {
+    bottom: var(--mobile-safe-bot);
+    right: var(--mobile-safe-r);
+  }
+  .hud-split__ring {
+    width: clamp(50px, 13vw, 64px);
+    height: clamp(50px, 13vw, 64px);
+  }
+  /* Ensure minimum 56px tap target */
+  .hud-split__ring::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+  }
+
+  /* Pause button: safe-area aware */
+  .hud-pause-btn {
+    top: var(--mobile-safe-top);
+    left: var(--mobile-safe-l);
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* ── Short landscape (≤500px height) ─────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hud-top {
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+  .hud-score {
+    top: max(8px, env(safe-area-inset-top));
+    padding: 4px 10px;
+  }
+  .hud-score__value {
+    font-size: clamp(18px, 3.5vw, 28px);
+  }
+  .hud-leaderboard {
+    padding: 5px 8px;
+    gap: 2px;
+  }
+  .hud-lb__row {
+    font-size: 11px;
+    padding: 2px 4px;
+  }
+  .hud-split {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    right: max(8px, env(safe-area-inset-right));
+  }
+  .hud-split__ring {
+    width: 60px;
+    height: 60px;
+  }
+  .hud-pause-btn {
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    width: 42px;
+    height: 42px;
+  }
+  .hud-coins {
+    padding: 3px 8px;
   }
 }

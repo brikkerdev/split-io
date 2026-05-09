@@ -41,4 +41,19 @@
   --radius-btn: 12px;
   --radius-pill:999px;
   --transition: 120ms ease-out;
+
+  /* Mobile layout tokens */
+  --mobile-modal-w:  min(94vw, 440px);
+  --mobile-btn-h:    48px;
+  --mobile-safe-top: max(16px, env(safe-area-inset-top));
+  --mobile-safe-bot: max(16px, env(safe-area-inset-bottom));
+  --mobile-safe-l:   max(12px, env(safe-area-inset-left));
+  --mobile-safe-r:   max(12px, env(safe-area-inset-right));
+}
+
+/* Apply iOS safe-area on touch devices */
+@supports (padding-top: env(safe-area-inset-top)) {
+  :root {
+    --safe: max(clamp(16px, 2.5vw, 32px), env(safe-area-inset-top));
+  }
 }

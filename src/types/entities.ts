@@ -14,7 +14,6 @@ export interface PlayerState extends ActorState {
   shieldReadyAt: number;
   shieldActive: boolean;
   splitReadyAt: number;
-  homingDelayBonusSec: number;
 }
 
 export type GhostMode = "straight" | "homing" | "fallback";

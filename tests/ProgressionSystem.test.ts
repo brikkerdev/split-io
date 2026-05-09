@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { ProgressionSystem } from "../src/systems/ProgressionSystem";
-import { BALANCE } from "../src/config/balance";
-import { UPGRADES, type UpgradeId } from "../src/config/upgrades";
+import { UPGRADES, UPGRADE_MAGNITUDES, type UpgradeId } from "../src/config/upgrades";
 import { GameEvents } from "../src/events/GameEvents";
 
 // ---------------------------------------------------------------------------
-// Minimal scene stub with Phaser-style context binding.
+// Minimal scene stub.
 // ---------------------------------------------------------------------------
 type Handler = (...args: unknown[]) => void;
 
@@ -36,16 +35,29 @@ function makeScene() {
   return { events: { on, off, emit, emitMock } };
 }
 
+function makeHero() {
+  return {
+    ghostSpeedBonusMult: 0,
+    ghostLifetimeBonusSec: 0,
+    ghostCooldownReductionSec: 0,
+    passiveSpeedBonusMult: 0,
+    speedCellsPerSec: 7,
+  };
+}
+
 // ---------------------------------------------------------------------------
 
 describe("ProgressionSystem", () => {
   let scene: ReturnType<typeof makeScene>;
+  let hero: ReturnType<typeof makeHero>;
   let sys: ProgressionSystem;
+  const noop = () => {};
 
   beforeEach(() => {
     vi.useFakeTimers();
     scene = makeScene();
-    sys = new ProgressionSystem(scene as never);
+    hero = makeHero();
+    sys = new ProgressionSystem(scene as never, hero as never, noop);
   });
 
   afterEach(() => {
@@ -57,124 +69,147 @@ describe("ProgressionSystem", () => {
     return scene.events.emitMock.mock.calls.filter((c) => c[0] === GameEvents.UpgradeOffer);
   }
 
-  function appliedCalls() {
-    return scene.events.emitMock.mock.calls.filter((c) => c[0] === GameEvents.UpgradeApplied);
-  }
+  // ── Trigger every 25% ──────────────────────────────────────
 
-  // ---- threshold triggers ----
-
-  it("does not offer at 0%", () => {
-    sys.onTerritoryPct(0);
+  it("does not offer below the next threshold", () => {
+    for (const pct of [0, 10, 20, 24]) {
+      sys.onTerritoryPct(pct);
+    }
     expect(offerCalls()).toHaveLength(0);
   });
 
-  it("offers at exactly 10%", () => {
-    sys.onTerritoryPct(10);
+  it("offers at 25%", () => {
+    sys.onTerritoryPct(25);
     expect(offerCalls()).toHaveLength(1);
   });
 
-  it("offers at 20% but not for 15%", () => {
-    sys.onTerritoryPct(10);
-    sys.onTerritoryPct(15);
-    sys.onTerritoryPct(20);
+  it("does not re-offer for the same threshold", () => {
+    sys.onTerritoryPct(25);
+    sys.onTerritoryPct(30);
+    expect(offerCalls()).toHaveLength(1);
+  });
+
+  it("offers again after applyUpgrade at next threshold", () => {
+    sys.onTerritoryPct(25);
+    sys.applyUpgrade("ghostSpeed");
+    sys.onTerritoryPct(50);
     expect(offerCalls()).toHaveLength(2);
   });
 
-  it("offers at 10 / 20 / 30% independently", () => {
-    sys.onTerritoryPct(10);
-    sys.onTerritoryPct(20);
-    sys.onTerritoryPct(30);
-    expect(offerCalls()).toHaveLength(3);
+  it("fires four offers across one full cycle (25/50/75/100)", () => {
+    sys.onTerritoryPct(25); sys.applyUpgrade("ghostSpeed");
+    sys.onTerritoryPct(50); sys.applyUpgrade("ghostLifetime");
+    sys.onTerritoryPct(75); sys.applyUpgrade("ghostCooldown");
+    sys.onTerritoryPct(100); sys.applyUpgrade("passiveSpeed");
+    expect(offerCalls()).toHaveLength(4);
   });
 
-  it("does not re-offer same bucket on repeated calls", () => {
-    sys.onTerritoryPct(10);
-    sys.onTerritoryPct(10);
-    sys.onTerritoryPct(9);
-    expect(offerCalls()).toHaveLength(1);
-  });
+  // ── Pool / choices ────────────────────────────────────────
 
-  // ---- pool / choices ----
-
-  it("offer payload contains array of UpgradeIds", () => {
-    sys.onTerritoryPct(10);
+  it("offer payload contains array of UpgradeIds (max 2)", () => {
+    sys.onTerritoryPct(25);
     const call = offerCalls()[0];
     const payload = call?.[1] as { choices: UpgradeId[] };
     expect(Array.isArray(payload.choices)).toBe(true);
-    expect(payload.choices.length).toBeLessThanOrEqual(BALANCE.upgradeChoiceCount);
+    expect(payload.choices.length).toBeLessThanOrEqual(2);
     payload.choices.forEach((id) => {
       expect(UPGRADES.map((u) => u.id)).toContain(id);
     });
   });
 
-  it("excludes maxed upgrades from choices", () => {
-    for (let i = 0; i < 3; i++) sys.applyUpgrade("homingDelay");
-    for (let i = 0; i < 3; i++) sys.applyUpgrade("splitCooldown");
-    for (let i = 0; i < 1; i++) sys.applyUpgrade("shield");
+  // ── applyUpgrade ──────────────────────────────────────────
 
-    scene.events.emitMock.mockClear();
-    sys.onTerritoryPct(10);
-
-    const call = offerCalls()[0];
-    const payload = call?.[1] as { choices: UpgradeId[] };
-    payload.choices.forEach((id) => {
-      expect(id).toBe("speed");
-    });
+  it("applyUpgrade increments stack up to maxStacks", () => {
+    const def = UPGRADES.find((u) => u.id === "ghostSpeed")!;
+    for (let i = 0; i < def.maxStacks + 2; i++) {
+      sys.applyUpgrade("ghostSpeed");
+    }
+    expect(sys.getActiveStacks().ghostSpeed).toBe(def.maxStacks);
   });
 
-  // ---- applyUpgrade ----
-
-  it("applyUpgrade increments stack and emits UpgradeApplied", () => {
-    sys.applyUpgrade("speed");
-    expect(sys.getActiveUpgrades().speed).toBe(1);
-    expect(appliedCalls()).toHaveLength(1);
-    expect((appliedCalls()[0]?.[1] as { id: UpgradeId }).id).toBe("speed");
+  it("applyUpgrade applies ghost speed effect to hero", () => {
+    sys.applyUpgrade("ghostSpeed");
+    expect(hero.ghostSpeedBonusMult).toBeCloseTo(0.25);
+    sys.applyUpgrade("ghostSpeed");
+    expect(hero.ghostSpeedBonusMult).toBeCloseTo(0.5);
   });
 
-  it("does not exceed maxStacks", () => {
-    for (let i = 0; i < 10; i++) sys.applyUpgrade("shield");
-    expect(sys.getActiveUpgrades().shield).toBe(1);
+  it("applyUpgrade applies ghostCooldown reduction to hero", () => {
+    sys.applyUpgrade("ghostCooldown");
+    expect(hero.ghostCooldownReductionSec).toBe(1);
   });
 
-  it("getActiveUpgrades returns all keys", () => {
-    const upgrades = sys.getActiveUpgrades();
-    expect(Object.keys(upgrades).sort()).toEqual(["homingDelay", "shield", "speed", "splitCooldown"]);
+  it("applyUpgrade applies passiveSpeed to hero", () => {
+    sys.applyUpgrade("passiveSpeed");
+    expect(hero.passiveSpeedBonusMult).toBeCloseTo(UPGRADE_MAGNITUDES.passiveSpeedMultPerStack);
   });
 
-  // ---- auto-close ----
+  // ── isPoolExhausted ───────────────────────────────────────
 
-  it("auto-close emits UpgradeOffer with empty choices after timeout", () => {
-    sys.onTerritoryPct(10);
-    const beforeClose = offerCalls().length;
-    expect(beforeClose).toBe(1);
-
-    vi.advanceTimersByTime(BALANCE.upgradeAutoCloseSec * 1000);
-
-    const all = offerCalls();
-    expect(all).toHaveLength(2);
-    const lastPayload = all[1]?.[1] as { choices: UpgradeId[] };
-    expect(lastPayload.choices).toHaveLength(0);
+  it("isPoolExhausted false initially", () => {
+    expect(sys.isPoolExhausted()).toBe(false);
   });
 
-  it("applyUpgrade cancels auto-close timer", () => {
-    sys.onTerritoryPct(10);
-    sys.applyUpgrade("speed");
-    vi.advanceTimersByTime(BALANCE.upgradeAutoCloseSec * 1000 + 1000);
-
-    expect(offerCalls()).toHaveLength(1);
+  it("isPoolExhausted true when all upgrades maxed", () => {
+    for (const def of UPGRADES) {
+      for (let i = 0; i < def.maxStacks; i++) {
+        sys.applyUpgrade(def.id);
+      }
+    }
+    expect(sys.isPoolExhausted()).toBe(true);
   });
 
-  // ---- reset ----
+  // ── getCycleCount ─────────────────────────────────────────
 
-  it("reset clears stacks and threshold", () => {
-    sys.applyUpgrade("speed");
-    sys.onTerritoryPct(10);
+  it("getCycleCount increments only at the 100% threshold", () => {
+    expect(sys.getCycleCount()).toBe(0);
+    // 25%, 50%, 75% sub-thresholds — no cycle increment.
+    sys.onTerritoryPct(25); sys.applyUpgrade("ghostSpeed");
+    expect(sys.getCycleCount()).toBe(0);
+    sys.onTerritoryPct(50); sys.applyUpgrade("ghostLifetime");
+    expect(sys.getCycleCount()).toBe(0);
+    sys.onTerritoryPct(75); sys.applyUpgrade("ghostCooldown");
+    expect(sys.getCycleCount()).toBe(0);
+    // 100% closes the cycle.
+    sys.onTerritoryPct(100); sys.applyUpgrade("passiveSpeed");
+    expect(sys.getCycleCount()).toBe(1);
+  });
+
+  // ── reset ────────────────────────────────────────────────
+
+  it("reset clears stacks and cycle count", () => {
+    sys.applyUpgrade("ghostSpeed");
     sys.reset();
+    expect(sys.getActiveStacks().ghostSpeed).toBe(0);
+    expect(sys.getCycleCount()).toBe(0);
+  });
 
-    expect(sys.getActiveUpgrades().speed).toBe(0);
-
+  it("reset allows offer to fire again at 25%", () => {
+    sys.onTerritoryPct(25);
+    sys.reset();
     scene.events.emitMock.mockClear();
-    sys.onTerritoryPct(10);
+    sys.onTerritoryPct(25);
     expect(offerCalls()).toHaveLength(1);
+  });
+
+  // ── Victory emission ──────────────────────────────────────
+
+  it("emits Victory when pool exhausted at 100%", () => {
+    for (const def of UPGRADES) {
+      for (let i = 0; i < def.maxStacks; i++) {
+        sys.applyUpgrade(def.id);
+      }
+    }
+    scene.events.emitMock.mockClear();
+    // Walk past sub-thresholds (silently skipped) and reach 100%.
+    sys.onTerritoryPct(25);
+    sys.onTerritoryPct(50);
+    sys.onTerritoryPct(75);
+    sys.onTerritoryPct(100);
+
+    const victoryCalls = scene.events.emitMock.mock.calls.filter(
+      (c) => c[0] === GameEvents.Victory,
+    );
+    expect(victoryCalls).toHaveLength(1);
   });
 });

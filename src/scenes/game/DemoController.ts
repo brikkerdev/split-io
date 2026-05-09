@@ -3,7 +3,7 @@ import { GRID } from "@config/grid";
 import { MAP } from "@config/map";
 import type { GridSystem } from "@systems/GridSystem";
 import type { BotAI } from "@systems/BotAI";
-import type { TerritorySystem } from "@systems/TerritorySystem";
+import type { PolygonTerritorySystem } from "@systems/PolygonTerritorySystem";
 
 const DEMO_BOT_COUNT = 12;
 const DEMO_FAIRNESS_RESET_SEC = 60;
@@ -12,7 +12,7 @@ const DEMO_FAIRNESS_PCT_LIMIT = 30;
 export interface DemoDeps {
   grid: GridSystem;
   botAI: BotAI;
-  territory: TerritorySystem;
+  territory: PolygonTerritorySystem;
   /** Mark renderer's territory layer as dirty. */
   markTerritoryDirty: () => void;
 }
@@ -33,7 +33,13 @@ export class DemoController {
     this.deps.botAI.spawn({
       count: DEMO_BOT_COUNT,
       passive: false,
-      profileWeights: { aggressor: 0.35, tourist: 0.4, hoarder: 0.25 },
+      profileWeights: {
+        aggressor: 0.28,
+        tourist: 0.28,
+        hoarder: 0.2,
+        carver: 0.14,
+        coward: 0.1,
+      },
     });
   }
 
@@ -44,31 +50,38 @@ export class DemoController {
     for (const bot of this.deps.botAI.getAll()) {
       const pct = this.deps.territory.getOwnerPercent(bot.id);
       if (pct > DEMO_FAIRNESS_PCT_LIMIT) {
-        this.deps.territory.shrinkOwner(bot.id, 0.4);
+        this.deps.territory.shrink(bot.id, 0.4);
       }
     }
     this.deps.markTerritoryDirty();
   }
 
-  scheduleBotRespawn(id: number): void {
-    const delayMs = 800 + Math.random() * 1200;
+  scheduleBotRespawn(id: number, delayMsOverride?: number): void {
+    const delayMs = delayMsOverride ?? 800 + Math.random() * 1200;
     this.scene.time.delayedCall(delayMs, () => {
       const bot = this.deps.botAI.getAll().find((b) => b.id === id);
       if (!bot || bot.alive) return;
       const cell = this.pickOffscreenSpawnCell();
+      if (!cell) {
+        // No clear spot; retry later instead of forcing a spawn on owned land.
+        this.scheduleBotRespawn(id, 1500 + Math.random() * 1500);
+        return;
+      }
       this.deps.botAI.respawnAt(id, cell);
       this.deps.markTerritoryDirty();
     });
   }
 
-  /** Random unowned cell inside the play circle, outside the camera view if possible. */
-  private pickOffscreenSpawnCell(): { cx: number; cy: number } {
+  /** Random unowned cell inside the play area, outside the camera view if possible. */
+  private pickOffscreenSpawnCell(): { cx: number; cy: number } | null {
     const grid = this.deps.grid;
+    const territory = this.deps.territory;
     const r = GRID.startTerritoryRadiusCells;
     const cellPx = grid.cellPx;
-    const innerR = MAP.radiusPx - (r + 2) * cellPx;
     const view = this.scene.cameras.main.worldView;
     const padPx = cellPx * (r + 1);
+    const innerR = MAP.radiusPx - (r + 2) * cellPx;
+    const probePx = r * cellPx;
 
     const isOffscreen = (wx: number, wy: number): boolean => {
       return (
@@ -79,35 +92,37 @@ export class DemoController {
       );
     };
 
-    const isClear = (cx: number, cy: number): boolean => {
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          const ncx = cx + dx;
-          const ncy = cy + dy;
-          if (!grid.inBounds(ncx, ncy)) continue;
-          if (grid.ownerOf(ncx, ncy) !== 0) return false;
-        }
-      }
+    // Cheap 5-point sample (center + 4 cardinals at the start-territory radius)
+    // instead of scanning every cell in a (2r+1)² block. Good enough to reject
+    // overlap with existing territories without the per-call ~50 ownerAt hits.
+    const isClear = (wx: number, wy: number): boolean => {
+      if (territory.ownerAt(wx, wy) !== 0) return false;
+      if (territory.ownerAt(wx + probePx, wy) !== 0) return false;
+      if (territory.ownerAt(wx - probePx, wy) !== 0) return false;
+      if (territory.ownerAt(wx, wy + probePx) !== 0) return false;
+      if (territory.ownerAt(wx, wy - probePx) !== 0) return false;
       return true;
     };
 
-    for (let attempt = 0; attempt < 80; attempt++) {
+    for (let attempt = 0; attempt < 32; attempt++) {
       const ang = Math.random() * Math.PI * 2;
-      const rad = Math.sqrt(Math.random()) * innerR;
+      const rad = Math.sqrt(Math.random()) * Math.max(0, innerR);
       const wx = MAP.centerX + Math.cos(ang) * rad;
       const wy = MAP.centerY + Math.sin(ang) * rad;
       if (!isOffscreen(wx, wy)) continue;
+      if (!isClear(wx, wy)) continue;
       const { cx, cy } = grid.worldToCell({ x: wx, y: wy });
-      if (isClear(cx, cy)) return { cx, cy };
+      return { cx, cy };
     }
-    for (let attempt = 0; attempt < 40; attempt++) {
+    for (let attempt = 0; attempt < 16; attempt++) {
       const ang = Math.random() * Math.PI * 2;
-      const rad = Math.sqrt(Math.random()) * innerR;
+      const rad = Math.sqrt(Math.random()) * Math.max(0, innerR);
       const wx = MAP.centerX + Math.cos(ang) * rad;
       const wy = MAP.centerY + Math.sin(ang) * rad;
+      if (!isClear(wx, wy)) continue;
       const { cx, cy } = grid.worldToCell({ x: wx, y: wy });
-      if (isClear(cx, cy)) return { cx, cy };
+      return { cx, cy };
     }
-    return { cx: Math.floor(grid.cols / 2), cy: Math.floor(grid.rows / 2) };
+    return null;
   }
 }

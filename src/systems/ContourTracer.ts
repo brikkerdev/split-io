@@ -98,8 +98,12 @@ function buildSegments(
   const { cols, rows } = grid;
   const segs: Array<[Vec2, Vec2]> = [];
 
-  for (let cy = 0; cy < rows; cy++) {
-    for (let cx = 0; cx < cols; cx++) {
+  // Vertex grid is (cols+1) × (rows+1). Iterating up to (cols, rows)
+  // inclusive ensures contours close along the world edge — without this,
+  // territories touching the right/bottom border produce open polylines that
+  // stitch into a degenerate wrap covering the whole world.
+  for (let cy = 0; cy <= rows; cy++) {
+    for (let cx = 0; cx <= cols; cx++) {
       // 4-bit bitmask: TL=bit3, TR=bit2, BR=bit1, BL=bit0
       const tl = grid.ownerOf(cx - 1, cy - 1) === ownerId ? 8 : 0;
       const tr = grid.ownerOf(cx,     cy - 1) === ownerId ? 4 : 0;
@@ -253,9 +257,61 @@ export function traceContours(
   ownerId: number,
   cellPx: number,
   smoothIterations: number,
+  cache?: ContourCache,
 ): Vec2[][] {
+  if (cache) {
+    return cache.get(grid, ownerId, cellPx, smoothIterations);
+  }
   const rawSegs = buildSegments(grid, ownerId, cellPx);
   const contours = stitchContours(rawSegs);
   if (smoothIterations <= 0) return contours;
   return contours.map((c) => chaikinSmooth(c, smoothIterations));
+}
+
+/**
+ * Per-owner contour cache with dirty-set invalidation.
+ * Call `markOwnerDirty(id)` whenever territory changes for `id`.
+ * `traceContours` with this cache only rebuilds dirty owners.
+ */
+export class ContourCache {
+  private cached = new Map<number, Vec2[][]>();
+  private dirty = new Set<number>();
+
+  markOwnerDirty(ownerId: number): void {
+    this.dirty.add(ownerId);
+  }
+
+  /** Invalidate all owners — use after bulk territory ops. */
+  markAllDirty(ownerIds: Iterable<number>): void {
+    for (const id of ownerIds) this.dirty.add(id);
+  }
+
+  get(
+    grid: OwnerGrid,
+    ownerId: number,
+    cellPx: number,
+    smoothIterations: number,
+  ): Vec2[][] {
+    if (!this.dirty.has(ownerId)) {
+      const hit = this.cached.get(ownerId);
+      if (hit !== undefined) return hit;
+    }
+
+    const rawSegs = buildSegments(grid, ownerId, cellPx);
+    const contours = stitchContours(rawSegs);
+    const result =
+      smoothIterations <= 0
+        ? contours
+        : contours.map((c) => chaikinSmooth(c, smoothIterations));
+
+    this.cached.set(ownerId, result);
+    this.dirty.delete(ownerId);
+    return result;
+  }
+
+  /** Remove a stale owner from the cache (e.g. bot died). */
+  evict(ownerId: number): void {
+    this.cached.delete(ownerId);
+    this.dirty.delete(ownerId);
+  }
 }

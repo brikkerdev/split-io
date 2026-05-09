@@ -6,14 +6,16 @@ export const ru: Record<string, string> = {
   menu_leaderboard: "Рейтинг",
   menu_settings: "Настройки",
   menu_daily_reward: "Ежедневная награда",
+  menu_best: "Рекорд",
 
   // HUD
   hud_score: "Счёт",
   hud_territory: "Территория",
   hud_leaderboard: "Лидеры",
   hud_lb_you: "Ты",
-  hud_split_ready: "Split!",
+  hud_split_ready: "Запуск!",
   hud_hint_move: "Двигайся!",
+  hud_coins: "Монеты",
 
   // GameOver
   gameover_title: "Игра окончена",
@@ -26,6 +28,7 @@ export const ru: Record<string, string> = {
   gameover_rank: "Место в рейтинге",
   gameover_new_best: "Новый рекорд!",
   gameover_continue: "Продолжить (реклама)",
+  gameover_double_coins: "Удвоить монеты",
   gameover_restart: "Заново",
   gameover_menu: "Меню",
   gameover_continue_unavailable: "Продолжение недоступно",
@@ -34,15 +37,36 @@ export const ru: Record<string, string> = {
 
   // Upgrades
   upgrade_title: "Выбери улучшение",
-  upgrade_speed: "+15% скорость",
-  upgrade_homing: "+1 сек задержки призрака",
-  upgrade_split_cd: "-1 сек перезарядки Split",
-  upgrade_shield: "Щит на 1 рез хвоста",
-  upgrade_speed_desc: "Герой движется быстрее",
-  upgrade_homing_desc: "Клещи длиннее — больше площадь захвата",
-  upgrade_split_cd_desc: "Чаще запускай призрака",
-  upgrade_shield_desc: "Один раз выживешь в рез хвоста",
+  upgrade_ghostSpeed: "Быстрая стрела",
+  upgrade_ghostSpeed_desc: "+25% скорости стрелы",
+  upgrade_ghostLifetime: "Долгая стрела",
+  upgrade_ghostLifetime_desc: "+1.5 с жизни стрелы",
+  upgrade_ghostCooldown: "Перезарядка",
+  upgrade_ghostCooldown_desc: "−1 с между выстрелами",
+  upgrade_passiveSpeed: "Скорость героя",
+  upgrade_passiveSpeed_desc: "+22% скорости героя",
   upgrade_auto_close: "Авто-выбор через {sec} сек",
+  upgrade_demo_slow: "медл.",
+  upgrade_demo_fast: "быстр.",
+  upgrade_demo_base: "база",
+  upgrade_demo_long: "+1.5с",
+  upgrade_demo_sec_suffix: "с",
+
+  // Victory
+  victory_title: "Вы победили!",
+  victory_subtitle: "Все улучшения получены. Вы непобедимы!",
+  victory_cycles: "Циклов",
+  victory_score: "Счёт",
+  victory_coins: "Монеты",
+  cycle_label: "Цикл %{n}",
+
+  // Achievements (new)
+  "ach.master_loop": "Легенда",
+  "ach.master_loop_desc": "Получи все улучшения («Вы победили»)",
+  "ach.cycle_2": "Двойной цикл",
+  "ach.cycle_2_desc": "Пройди 2 цикла",
+  "ach.cycle_5": "Пятикратный",
+  "ach.cycle_5_desc": "Пройди 5 циклов",
 
   // Settings modal stub
   settings_title: "Настройки",
@@ -52,7 +76,17 @@ export const ru: Record<string, string> = {
   settings_control_swipe: "Свайп",
   settings_control_joystick: "Джойстик",
   settings_lang: "Язык",
+  settings_ui_scale: "Размер интерфейса",
+  settings_ui_scale_small: "Меньше",
+  settings_ui_scale_normal: "Обычный",
+  settings_ui_scale_large: "Больше",
   settings_close: "Закрыть",
+  settings_reset: "Сбросить прогресс",
+  settings_reset_btn: "Сбросить",
+  reset_confirm_title: "Сбросить прогресс?",
+  reset_confirm_body: "Монеты, скины, ачивки и лучший счёт будут удалены. Действие необратимо.",
+  reset_confirm_cancel: "Отмена",
+  reset_confirm_ok: "Да, сбросить",
 
   // Achievements modal
   achievements_title: "Достижения",
@@ -67,10 +101,10 @@ export const ru: Record<string, string> = {
   "ach.capture_100pct_desc": "Захвати всю карту",
   "ach.survive_round": "Выживший",
   "ach.survive_round_desc": "Продержись 60 секунд",
-  "ach.kill_with_ghost": "Удар призрака",
-  "ach.kill_with_ghost_desc": "Убей бота пока активен призрак",
-  "ach.ten_kills_round": "Истребитель",
-  "ach.ten_kills_round_desc": "10 убийств за один раунд",
+  "ach.kill_with_ghost": "Удар стрелы",
+  "ach.kill_with_ghost_desc": "Поймай бота пока активна стрела",
+  "ach.ten_kills_round": "Ловкач",
+  "ach.ten_kills_round_desc": "Поймай 10 ботов за раунд",
   "ach.top1_streak3": "Тройная корона",
   "ach.top1_streak3_desc": "Финишируй 1-м три раунда подряд",
   "ach.all_skins": "Коллекционер",
@@ -79,9 +113,18 @@ export const ru: Record<string, string> = {
   // Daily reward modal
   daily_title: "Ежедневная награда",
   daily_claim: "Забрать +{amount} монет",
+  daily_claim_now: "Забрать награду",
   daily_claimed: "Уже получено сегодня",
   daily_amount: "+{amount} монет",
   daily_next: "Следующая через {time}",
+  daily_day_n: "День {n}",
+  daily_streak_label: "Огонёк: {n} дней подряд",
+  daily_streak_idle: "Заходи каждый день — раздуй огонёк!",
+  daily_streak_best: "Рекорд: {n} дней",
+  daily_streak_expired: "Огонёк погас — начинаем заново",
+  daily_coins_label: "монеты",
+  daily_strip_skin: "Скин",
+  skins_daily_only: "Из ежедневной",
 
   // Leaderboard modal
   leaderboard_title: "Рейтинг",
@@ -90,6 +133,16 @@ export const ru: Record<string, string> = {
   leaderboard_error: "Не удалось загрузить",
   leaderboard_retry: "Повторить",
   leaderboard_you: "Вы",
+  leaderboard_consent_title: "Публикация результата",
+  leaderboard_consent_text:
+    "Чтобы попасть в общий рейтинг, нужно войти через Яндекс ID. Мы передадим в лидерборд только ваш счёт и публичное имя из аккаунта Яндекс — ничего больше. Если откажетесь, игра продолжит работать локально без рейтинга.",
+  leaderboard_consent_accept: "Войти и отправить",
+  leaderboard_consent_decline: "Не сейчас",
+  leaderboard_consent_pending: "Ваш результат: {score}",
+
+  // Tutorial
+  tutorial_move: "Веди героя — за тобой тянется хвост",
+  tutorial_shoot: "Тапни по экрану, чтобы выпустить стрелу",
 
   // Pause
   pause_title: "Пауза",
@@ -118,7 +171,47 @@ export const ru: Record<string, string> = {
   "skin.white": "Неон Белый",
   "skin.black": "Неон Чёрный",
 
+  // Daily-only skin names
+  "skin.coral":     "Коралл",
+  "skin.aqua":      "Аква",
+  "skin.lavender":  "Лаванда",
+  "skin.sun":       "Солнце",
+  "skin.jade":      "Нефрит",
+  "skin.blossom":   "Цветение",
+  "skin.sapphire":  "Сапфир",
+  "skin.ember":     "Уголёк",
+  "skin.glacier":   "Ледник",
+  "skin.forest":    "Лес",
+  "skin.orchid":    "Орхидея",
+  "skin.topaz":     "Топаз",
+  "skin.obsidian":  "Обсидиан",
+  "skin.pearl":     "Жемчуг",
+  "skin.ruby":      "Рубин",
+  "skin.lagoon":    "Лагуна",
+  "skin.storm":     "Шторм",
+  "skin.meadow":    "Луг",
+  "skin.neon_void": "Неон-Бездна",
+  "skin.aurora":    "Сияние",
+  "skin.inferno":   "Инферно",
+  "skin.celestial": "Небесный",
+  "skin.eclipse":   "Затмение",
+
+  // Two-tone skin names
+  "skin.duo_split":   "Дуо Сплит",
+  "skin.duo_lemon":   "Дуо Лимон",
+  "skin.duo_grape":   "Дуо Гроза",
+  "skin.duo_sunset":  "Дуо Закат",
+  "skin.duo_ocean":   "Дуо Океан",
+  "skin.duo_reef":    "Дуо Риф",
+  "skin.duo_galaxy":  "Дуо Галактика",
+  "skin.duo_candy":   "Дуо Карамель",
+  "skin.duo_phoenix": "Дуо Феникс",
+
   // Common
   close: "Закрыть",
   ok: "Ок",
+
+  // App
+  app_title: "Закрась.ио",
+  coming_soon: "Скоро",
 };

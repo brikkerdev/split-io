@@ -1,5 +1,34 @@
 @import './vars.css';
 
+/* ── Manrope (local, variable) ────────────────────────────── */
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('./fonts/manrope-variable-cyrillic.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('./fonts/manrope-variable-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('./fonts/manrope-variable.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ── Keyframes ────────────────────────────────────────────── */
 @keyframes pop-in {
   from { transform: scale(0.88); opacity: 0; }
@@ -24,6 +53,46 @@
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   z-index: 10;
+}
+
+/* User-tunable UI scale (settings → "Размер интерфейса").
+ * Applied to specific content clusters — modals, menu inner, HUD pills —
+ * so corner-anchored elements (daily badge, leaderboard) stay at the canvas
+ * edge regardless of scale, while interactive content scales uniformly. */
+.modal-box,
+.menu-inner,
+#menu-screen .menu-daily-btn,
+.hud-score,
+.hud-leaderboard,
+.hud-coins,
+.hud-split,
+.hud-hint {
+  zoom: var(--ui-scale, 1);
+}
+
+/* Soft wiggle used in place of camera shake — toggled by JuiceSystem.
+ * Two intensities: small (capture), large (death). */
+#ui-overlay.shake-sm {
+  animation: ui-shake-sm 90ms ease-out;
+}
+#ui-overlay.shake-lg {
+  animation: ui-shake-lg 220ms ease-out;
+}
+@keyframes ui-shake-sm {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-2px, 1px); }
+  50%  { transform: translate(2px, -1px); }
+  75%  { transform: translate(-1px, -1px); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes ui-shake-lg {
+  0%   { transform: translate(0, 0); }
+  15%  { transform: translate(-5px, 2px); }
+  30%  { transform: translate(5px, -3px); }
+  45%  { transform: translate(-4px, 4px); }
+  60%  { transform: translate(4px, -2px); }
+  75%  { transform: translate(-2px, 1px); }
+  100% { transform: translate(0, 0); }
 }
 
 .ui-screen {
@@ -125,7 +194,10 @@
 .modal-box {
   position: relative;
   padding: clamp(28px, 4vh, 44px) clamp(28px, 4vw, 48px);
-  width: min(90vw, 440px);
+  width: min(90%, 440px);
+  max-width: 90%;
+  max-height: 92%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -229,8 +301,8 @@
   position: absolute;
   top: var(--safe);
   left: var(--safe);
-  width: clamp(40px, 5.5vw, 52px);
-  height: clamp(40px, 5.5vw, 52px);
+  width: clamp(32px, 4.2vw, 42px);
+  height: clamp(32px, 4.2vw, 42px);
   border-radius: 50%;
   background: var(--panel-bg);
   border: var(--border-sticker);
@@ -254,7 +326,7 @@
   box-shadow: var(--shadow-sticker-press);
 }
 
-/* ── Mobile ───────────────────────────────────────────────── */
+/* ── Mobile 640px ─────────────────────────────────────────── */
 @media (max-width: 640px) {
   .btn {
     border-width: 2px;
@@ -272,5 +344,148 @@
   }
   .modal-close-btn {
     box-shadow: 3px 3px 0 var(--ink);
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
   }
+}
+
+/* ── Portrait phone (≤480px wide) ────────────────────────── */
+@media (max-width: 480px) {
+  .modal-box {
+    width: var(--mobile-modal-w);
+    padding: clamp(20px, 5vw, 32px) clamp(16px, 5vw, 28px);
+    max-height: 90vh;
+    overflow-y: auto;
+    gap: 12px;
+  }
+  .modal-title {
+    font-size: clamp(18px, 5.5vw, 24px);
+  }
+  .modal-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .modal-actions .btn,
+  .modal-actions button {
+    width: 100%;
+    min-height: var(--mobile-btn-h);
+  }
+
+  /* Pause screen */
+  .pause-inner {
+    padding: 28px 20px;
+    min-width: min(88vw, 300px);
+    gap: 14px;
+  }
+  .pause-title {
+    font-size: clamp(24px, 8vw, 36px);
+  }
+  .pause-btn {
+    min-height: var(--mobile-btn-h);
+  }
+
+  /* HUD pause button safe-area */
+  .hud-pause-btn {
+    top: max(var(--safe), env(safe-area-inset-top));
+    left: max(var(--safe), env(safe-area-inset-left));
+  }
+}
+
+/* ── Short landscape (≤500px height) ─────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .modal-box {
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 16px 20px;
+    gap: 10px;
+  }
+  .modal-title {
+    font-size: clamp(16px, 3.5vw, 22px);
+  }
+  .pause-inner {
+    padding: 20px 28px;
+    gap: 10px;
+  }
+  .pause-title {
+    font-size: clamp(22px, 4vw, 32px);
+  }
+  .pause-btn {
+    height: clamp(44px, 8vh, 56px);
+    font-size: clamp(13px, 1.8vw, 16px);
+  }
+}
+
+/* ── Tutorial banner ──────────────────────────────────────── */
+.tutorial-banner {
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: clamp(80px, 14vh, 140px);
+  pointer-events: none;
+}
+.tutorial-banner__inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel-bg);
+  border: var(--border-sticker);
+  box-shadow: var(--shadow-sticker);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  max-width: min(86vw, 520px);
+  transform: translateY(-8px);
+  transition: transform var(--transition), opacity var(--transition);
+}
+.tutorial-banner.visible .tutorial-banner__inner {
+  transform: translateY(0);
+  animation: pop-in 220ms ease-out;
+}
+.tutorial-banner__icon {
+  font-size: clamp(20px, 4vw, 28px);
+  color: var(--mint-dark);
+  flex-shrink: 0;
+}
+.tutorial-banner__msg {
+  font-size: clamp(13px, 2vw, 16px);
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+/* ── Tutorial tap hint ────────────────────────────────────── */
+@keyframes tap-pulse {
+  0%   { transform: scale(0.85); opacity: 0.9; }
+  60%  { transform: scale(1.6);  opacity: 0; }
+  100% { transform: scale(1.6);  opacity: 0; }
+}
+@keyframes tap-bob {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50%      { transform: translate(-50%, -50%) scale(1.12); }
+}
+.tutorial-tap-hint {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 80px;
+  height: 80px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+}
+.tutorial-tap-hint__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background: rgba(168, 224, 197, 0.35);
+  animation: tap-pulse 1.4s ease-out infinite;
+}
+.tutorial-tap-hint__icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  font-size: 36px;
+  color: var(--ink);
+  transform: translate(-50%, -50%);
+  animation: tap-bob 1.4s ease-in-out infinite;
 }

@@ -34,7 +34,14 @@ const mockScene = {
       },
     },
   },
-  cameras: { main: { width: 0, height: 0 } },
+  cameras: {
+    main: {
+      width: 0,
+      height: 0,
+      zoom: 1,
+      getWorldPoint: (x: number, y: number) => ({ x, y }),
+    },
+  },
   input: mockInput,
   events: {
     emit: vi.fn((event: string, ...args: unknown[]) => {
@@ -52,10 +59,14 @@ const mockScene = {
 import { InputSystem } from "./InputSystem";
 
 function firePointerDown(x: number, y: number, worldX = x, worldY = y): void {
+  // Phaser passes the actual Pointer instance to handlers — its x/y mutate
+  // with subsequent moves. We mirror that by passing activePointer itself.
+  mockInput.activePointer.x = x;
+  mockInput.activePointer.y = y;
+  mockInput.activePointer.worldX = worldX;
+  mockInput.activePointer.worldY = worldY;
   const handlers = pointerListeners["pointerdown"] ?? [];
-  handlers.forEach((h) =>
-    h({ x, y, worldX, worldY, leftButtonDown: () => true }),
-  );
+  handlers.forEach((h) => h(mockInput.activePointer));
 }
 
 function firePointerMove(x: number, y: number, worldX = x, worldY = y): void {
@@ -67,7 +78,7 @@ function firePointerMove(x: number, y: number, worldX = x, worldY = y): void {
 
 function firePointerUp(): void {
   const handlers = pointerListeners["pointerup"] ?? [];
-  handlers.forEach((h) => h({ x: 0, y: 0 }));
+  handlers.forEach((h) => h(mockInput.activePointer));
 }
 
 beforeEach(() => {
@@ -145,19 +156,18 @@ describe("InputSystem — desktop", () => {
     expect(mockScene.events.emit).toHaveBeenCalledWith("split:request");
   });
 
-  it("smoothing interpolates gradually on short dt", () => {
+  it("heading snaps instantly to pointer direction", () => {
     const sys = new InputSystem(mockScene as never);
     sys.init();
 
     // cursor to the left => angle = PI
     firePointerMove(-100, 0, -100, 0);
 
-    // short dt — should not snap immediately
     sys.update(16, 0, 0);
 
     const h = sys.getDesiredHeading();
-    // still mostly right after 16ms
-    expect(h.x).toBeGreaterThan(0.5);
+    // instant response: hero faces left immediately
+    expect(h.x).toBeLessThan(-0.99);
   });
 
   it("playerHasInput false initially, true after valid cursor move", () => {

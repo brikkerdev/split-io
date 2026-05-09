@@ -19,25 +19,6 @@
   to   { opacity: 1; }
 }
 
-/* accent blob behind the panel */
-#pause-screen .pause-inner {
-  position: relative;
-}
-#pause-screen .pause-inner::before {
-  content: '';
-  position: absolute;
-  top: -18px;
-  right: -18px;
-  width: 80px;
-  height: 80px;
-  background: var(--yellow);
-  border-radius: 50%;
-  border: var(--border-sticker);
-  opacity: 0.6;
-  pointer-events: none;
-  z-index: -1;
-}
-
 /* pause title gets a coloured underline stripe */
 .pause-title {
   position: relative;
@@ -71,5 +52,47 @@
   .pause-btn {
     min-height: 52px;
     font-size: 16px;
+  }
+}
+
+/* ── Portrait phone (≤480px wide) ────────────────────────── */
+@media (max-width: 480px) {
+  .pause-inner {
+    min-width: min(88vw, 300px);
+    width: min(88vw, 300px);
+    padding: 24px 20px;
+    gap: 12px;
+  }
+  .pause-title {
+    font-size: clamp(24px, 8vw, 34px);
+  }
+  .pause-btn {
+    min-height: var(--mobile-btn-h);
+    font-size: clamp(14px, 4.5vw, 17px);
+  }
+}
+
+/* ── Short landscape (≤500px height) ─────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .pause-inner {
+    padding: 18px 32px;
+    gap: 10px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    min-width: 0;
+    max-width: 90vw;
+  }
+  .pause-title {
+    width: 100%;
+    text-align: center;
+    font-size: clamp(20px, 4vw, 30px);
+  }
+  .pause-btn {
+    flex: 1;
+    min-width: 120px;
+    max-width: 200px;
+    height: clamp(44px, 9vh, 56px);
+    font-size: clamp(13px, 1.8vw, 16px);
   }
 }

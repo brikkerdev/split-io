@@ -189,6 +189,18 @@
 .btn-continue:hover {
   background: var(--peach-dark);
 }
+.btn-double-coins {
+  background: #f5b400;
+  border-color: var(--ink);
+  font-size: clamp(14px, 1.9vw, 18px) !important;
+  height: clamp(50px, 6.8vh, 66px) !important;
+  font-weight: 800;
+  box-shadow: var(--shadow-sticker) !important;
+  color: var(--text);
+}
+.btn-double-coins:hover {
+  background: #e0a200;
+}
 
 .gameover-buttons .btn-row {
   display: flex;
@@ -231,7 +243,7 @@
   pointer-events: none;
 }
 
-/* ── Mobile ───────────────────────────────────────────────── */
+/* ── Mobile 640px ─────────────────────────────────────────── */
 @media (max-width: 640px) {
   .gameover-breakdown {
     margin-left: 0;
@@ -242,5 +254,86 @@
   }
   .gameover-score-value {
     font-size: clamp(56px, 18vw, 88px);
+  }
+}
+
+/* ── Portrait phone (≤480px wide) ────────────────────────── */
+@media (max-width: 480px) {
+  .gameover-inner {
+    padding-top: max(var(--safe), env(safe-area-inset-top));
+    padding-bottom: max(var(--safe), env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    gap: clamp(10px, 2vh, 18px);
+    overflow-y: auto;
+    max-height: 100%;
+  }
+  .gameover-score-value {
+    font-size: clamp(52px, 17vw, 80px);
+  }
+  .gameover-title {
+    font-size: clamp(26px, 8vw, 38px);
+  }
+  .gameover-breakdown {
+    padding: 14px 16px;
+  }
+  .breakdown-row {
+    font-size: clamp(12px, 3.5vw, 15px);
+    padding: clamp(6px, 1.2vh, 10px) 0;
+  }
+  .gameover-buttons {
+    max-width: 100%;
+    width: 100%;
+  }
+  .gameover-buttons .btn {
+    height: clamp(48px, 7vh, 60px);
+    font-size: clamp(14px, 4vw, 16px);
+  }
+  .btn-continue {
+    font-size: clamp(15px, 4.5vw, 18px) !important;
+    height: clamp(52px, 8vh, 64px) !important;
+  }
+  .gameover-buttons .btn-row {
+    gap: 8px;
+  }
+}
+
+/* ── Short landscape (≤500px height) ─────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .gameover-inner {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 10px;
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    overflow-y: auto;
+    max-height: 100%;
+  }
+  .gameover-score-wrap {
+    flex-shrink: 0;
+  }
+  .gameover-score-value {
+    font-size: clamp(40px, 8vw, 64px);
+  }
+  .gameover-title {
+    font-size: clamp(20px, 4vw, 30px);
+  }
+  .gameover-breakdown {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px 14px;
+    margin-left: 0;
+  }
+  .gameover-buttons {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .gameover-buttons .btn {
+    flex: 1;
+    min-width: 120px;
+    height: clamp(44px, 9vh, 56px);
   }
 }

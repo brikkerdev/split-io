@@ -74,7 +74,7 @@ export class DomMenu {
 
     const title = document.createElement("div");
     title.className = "menu-logo__title";
-    title.textContent = "Split.io";
+    title.textContent = t("app_title");
     wrap.appendChild(title);
 
     let save: SaveV1 | null = null;
@@ -82,7 +82,7 @@ export class DomMenu {
     if (save && save.bestScore > 0) {
       const best = document.createElement("div");
       best.className = "menu-logo__best";
-      best.textContent = `${t("hud_score")}: ${save.bestScore}`;
+      best.textContent = `${t("menu_best")}: ${save.bestScore}`;
       wrap.appendChild(best);
     }
 
@@ -124,6 +124,11 @@ export class DomMenu {
     label.textContent = t("menu_daily_reward");
     btn.appendChild(label);
 
+    // Streak flame badge — visible when streak > 0
+    const streak = document.createElement("span");
+    streak.className = "menu-daily-streak";
+    btn.appendChild(streak);
+
     btn.addEventListener("click", () => this.openDailyRewardModal());
     btn.addEventListener("touchend", (e) => { e.preventDefault(); this.openDailyRewardModal(); });
     return btn;
@@ -134,7 +139,7 @@ export class DomMenu {
     row.className = "menu-secondary-row";
 
     const items: IconBtn[] = [
-      { labelKey: "menu_skins",        glyph: "ph-shirt",        action: () => this.openSkinsModal() },
+      { labelKey: "menu_skins",        glyph: "ph-t-shirt",      action: () => this.openSkinsModal() },
       { labelKey: "menu_achievements", glyph: "ph-trophy",       action: () => DomUI.get().mountAchievementsModal() },
       { labelKey: "menu_leaderboard",  glyph: "ph-crown",        action: () => this.openLeaderboardModal() },
       { labelKey: "menu_settings",     glyph: "ph-gear",         action: () => this.openSettingsModal() },
@@ -159,23 +164,39 @@ export class DomMenu {
 
   private checkDailyReward(): void {
     const sys = new DailyRewardSystem();
-    if (sys.canClaim(Date.now())) {
+    const status = sys.getStatus(Date.now());
+    if (status.canClaim) {
       this.dailyBtnEl.classList.add("has-reward");
     } else {
       this.dailyBtnEl.classList.remove("has-reward");
+    }
+
+    const streakEl = this.dailyBtnEl.querySelector<HTMLElement>(".menu-daily-streak");
+    if (streakEl) {
+      if (status.streak > 0) {
+        streakEl.innerHTML = `<i class="ph-fill ph-fire"></i><span>${status.streak}</span>`;
+        streakEl.classList.add("visible");
+        if (status.streak >= 14) streakEl.classList.add("blaze");
+        else streakEl.classList.remove("blaze");
+      } else {
+        streakEl.classList.remove("visible");
+      }
     }
   }
 
   private openDailyRewardModal(): void {
     DomUI.get().mountDailyModal(
       () => {
-        // on close — no extra action needed
+        // on close — refresh streak badge in case state changed
+        this.checkDailyReward();
       },
       () => {
-        // on claimed — remove badge, emit event
+        // on claimed — remove badge, emit event, refresh streak display
         this.dailyBtnEl.classList.remove("has-reward");
-        this.game?.events.emit("daily:claimed", { amount: 50 });
+        this.checkDailyReward();
+        this.game?.events.emit("daily:claimed", {});
       },
+      this.game,
     );
   }
 
@@ -188,7 +209,7 @@ export class DomMenu {
   private openSkinsModal(): void {
     DomUI.get().mountSkinsModal(() => {
       // no-op: modal self-dismounts on close
-    });
+    }, this.game ?? null);
   }
 
   private openSettingsModal(): void {
@@ -203,7 +224,7 @@ export class DomMenu {
   private openStub(titleKey: string): void {
     const modal = this.createModal(t(titleKey), () => modal.remove());
     const body = modal.querySelector(".modal-body");
-    if (body) body.textContent = "Coming soon";
+    if (body) body.textContent = t("coming_soon");
     this.modalContainer.appendChild(modal);
   }
 

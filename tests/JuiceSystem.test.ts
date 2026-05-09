@@ -53,6 +53,9 @@ function makeScene() {
   const rectObj = {
     setBlendMode: vi.fn().mockReturnThis(),
     setDepth: vi.fn().mockReturnThis(),
+    setScrollFactor: vi.fn().mockReturnThis(),
+    setOrigin: vi.fn().mockReturnThis(),
+    alpha: 0,
     destroy: vi.fn(),
   };
 
@@ -73,7 +76,13 @@ function makeScene() {
     }),
   };
 
-  const tweens = { timeScale: 1 };
+  const tweens = {
+    timeScale: 1,
+    add: vi.fn((cfg: { onComplete?: () => void }) => {
+      cfg.onComplete?.();
+      return { remove: vi.fn() };
+    }),
+  };
 
   const listeners: Record<string, Array<(arg?: unknown) => void>> = {};
 
@@ -112,14 +121,14 @@ describe("JuiceSystem", () => {
     juice.setHeroId(1);
   });
 
-  it("shake calls camera.shake", () => {
-    juice.shake(0.01, 100);
-    expect(scene.cameras.main.shake).toHaveBeenCalledWith(100, 0.01);
+  it("shake does not throw when no DOM overlay is present", () => {
+    expect(() => juice.shake(0.01, 100)).not.toThrow();
   });
 
-  it("flash decomposes color and calls camera.flash", () => {
+  it("flash spawns a tinted overlay rectangle and tweens it out", () => {
     juice.flash(0xff8040, 200);
-    expect(scene.cameras.main.flash).toHaveBeenCalledWith(200, 0xff, 0x80, 0x40, false);
+    expect(scene.add.rectangle).toHaveBeenCalled();
+    expect(scene.tweens.add).toHaveBeenCalled();
   });
 
   it("slowMo sets timeScale immediately", () => {
@@ -139,15 +148,13 @@ describe("JuiceSystem", () => {
 
   it("destroy removes all event listeners", () => {
     juice.destroy();
-    expect(scene.events.off).toHaveBeenCalledTimes(6);
+    expect(scene.events.off).toHaveBeenCalledTimes(7);
   });
 
-  it("territory:captured event triggers flash + shake + burst without throwing", () => {
+  it("territory:captured event triggers burst without throwing", () => {
     expect(() =>
       scene.events.emit("territory:captured", { ownerId: 1, cells: 50, pct: 10 }),
     ).not.toThrow();
-    expect(scene.cameras.main.flash).toHaveBeenCalled();
-    expect(scene.cameras.main.shake).toHaveBeenCalled();
     expect(scene._emitter.explode).toHaveBeenCalled();
   });
 

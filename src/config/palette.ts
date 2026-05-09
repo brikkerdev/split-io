@@ -37,12 +37,13 @@ export const PALETTE = {
   },
 
   upgradeIcon: {
-    speed:         0xa8d8ea, // sky-blue
-    homingDelay:   0xf7b7d2, // pink
+    speed:         0xa8d8ea, // sky-blue (kept for UpgradeCard compat)
     splitCooldown: 0xb8e0c2, // mint
     shield:        0xffd8b1, // peach
-    reserve_a:     0xd4c5f9, // lavender
-    reserve_b:     0xf7a6a6, // coral
+    ghostSpeed:    0xa8d8ea, // sky-blue
+    ghostLifetime: 0xd4c5f9, // lavender
+    ghostCooldown: 0xb8e0c2, // mint
+    passiveSpeed:  0xa8e0c5, // mint-green
     default:       0xa8e0c5,
   },
 } as const;

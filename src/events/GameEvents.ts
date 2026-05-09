@@ -29,6 +29,24 @@ export const GameEvents = {
 
   DailyClaimed: "daily:claimed",
   AchievementUnlocked: "achievement:unlocked",
+
+  CoinEarned: "coin:earned",
+  CoinTotalChanged: "coin:total",
+
+  /** Emitted when a new cycle starts after upgrade pick. Payload: { cycle: number } */
+  CycleStart: "cycle:start",
+
+  /** Emitted when player wins (pool exhausted). No payload. */
+  Victory: "victory",
+
+  /** Emitted just before GameOver modal is shown (post-mortem zoom plays first). */
+  PreGameOver: "round:preGameOver",
+
+  /** Emitted on game.events when the player changes the control scheme in settings. */
+  ControlSchemeChanged: "settings:controlScheme",
+
+  /** Emitted on game.events when the player selects a skin in the skins modal. */
+  SkinChanged: "settings:skin",
 } as const;
 
 export type GameEventKey = (typeof GameEvents)[keyof typeof GameEvents];

@@ -1,9 +1,10 @@
 @import './vars.css';
 
 /* ── Skins modal ──────────────────────────────────────────── */
-.skins-modal {
-  width: min(92vw, 560px);
-  max-height: min(90vh, 660px);
+.modal-box.skins-modal {
+  width: min(94vw, 760px);
+  max-width: min(94vw, 760px);
+  max-height: min(90vh, 720px);
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -36,8 +37,8 @@
 /* ── Grid ─────────────────────────────────────────────────── */
 .skins-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(100px, 18vw, 140px), 1fr));
-  gap: clamp(12px, 1.8vw, 18px);
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(10px, 1.6vw, 16px);
   overflow-y: auto;
   padding-right: 4px;
   scrollbar-width: thin;
@@ -144,19 +145,32 @@
   background: var(--bg);
   color: var(--text-muted);
 }
+.skin-state--daily {
+  background: var(--peach);
+  color: var(--text);
+}
+.skin-state--daily .ph-fill {
+  color: #ff7a2c;
+}
 .skin-state i {
   font-size: clamp(10px, 1.3vw, 13px);
 }
 
-/* ── Mobile ───────────────────────────────────────────────── */
+/* Rarity tints — subtle border accents */
+.skin-card--epic { border-color: #6a78a8; }
+.skin-card--legendary { border-color: #c14fff; box-shadow: 3px 3px 0 #c14fff; }
+.skin-card--legendary:hover { box-shadow: 4px 4px 0 #c14fff; }
+
+/* ── Mobile 640px ─────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .skins-modal {
+  .modal-box.skins-modal {
     padding: 18px 14px;
-    max-height: 86vh;
+    max-height: 88vh;
+    overflow-y: auto;
   }
   .skins-grid {
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
   }
   .skin-card {
     padding: 12px 8px;
@@ -164,5 +178,46 @@
   }
   .skins-coins-row {
     box-shadow: 3px 3px 0 var(--ink);
+  }
+}
+
+/* ── Portrait phone (≤480px wide) — 2-column grid ─────────── */
+@media (max-width: 480px) {
+  .modal-box.skins-modal {
+    width: var(--mobile-modal-w);
+    max-height: 90vh;
+    padding: 16px 12px;
+  }
+  .skins-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .skin-card {
+    padding: 18px 8px 14px;
+    min-height: 140px;
+    gap: 10px;
+    justify-content: flex-start;
+  }
+  .skin-swatch {
+    width: clamp(36px, 11vw, 48px);
+    height: clamp(36px, 11vw, 48px);
+  }
+  .skin-state {
+    padding: 4px 10px;
+  }
+}
+
+/* ── Short landscape (≤500px height) ─────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .modal-box.skins-modal {
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  .skins-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .skin-card {
+    padding: 10px 6px;
   }
 }

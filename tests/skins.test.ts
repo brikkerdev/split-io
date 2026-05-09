@@ -64,8 +64,26 @@ describe("Skins logic", () => {
     expect(result).toBeNull();
   });
 
-  it("SKINS has 12 entries", () => {
-    expect(SKINS).toHaveLength(12);
+  it("SKINS has shop, daily and dual-tone tiers", () => {
+    const shop = SKINS.filter((s) => !s.dailyOnly);
+    const daily = SKINS.filter((s) => s.dailyOnly);
+    const duo = SKINS.filter((s) => s.fillSecondary !== undefined);
+    expect(shop.length).toBeGreaterThanOrEqual(12);
+    expect(daily.length).toBeGreaterThanOrEqual(20);
+    expect(duo.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("every skin has a pattern id", () => {
+    for (const s of SKINS) {
+      expect(typeof s.pattern).toBe("string");
+      expect(s.pattern.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("daily-only skins all have cost 0", () => {
+    for (const s of SKINS) {
+      if (s.dailyOnly) expect(s.cost).toBe(0);
+    }
   });
 
   it("free skin has cost 0", () => {

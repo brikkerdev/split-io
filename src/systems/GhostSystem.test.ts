@@ -130,34 +130,6 @@ describe("GhostSystem cooldown", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Ghost prefly duration upgrade integration
-// ---------------------------------------------------------------------------
-
-describe("Ghost preflySec upgrade", () => {
-  it("homingDelayBonusSec extends prefly phase", () => {
-    const ghost = new Ghost(101, 1);
-    const bonusSec = 2;
-    const effectivePrefly = GHOST.preflySec + bonusSec; // 5s
-
-    ghost.spawn({ x: 0, y: 0 }, 0, 5, effectivePrefly);
-    expect(ghost.preflySec).toBe(5);
-
-    // At 3s still in prefly.
-    ghost.tick(3);
-    expect(ghost.phase).toBe("prefly");
-
-    // At 5s transitions to homing.
-    ghost.tick(2 + 0.001);
-    expect(ghost.phase).toBe("homing");
-  });
-
-  it("preflySec capped at homingDelayBonusMaxSec + base", () => {
-    const max = GHOST.preflySec + GHOST.homingDelayBonusMaxSec;
-    expect(max).toBe(9); // 3 + 6
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Homing phase: steer toward hero position
 // ---------------------------------------------------------------------------
 

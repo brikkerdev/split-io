@@ -8,7 +8,10 @@ export type AchievementId =
   | "capture_50pct"
   | "capture_100pct"
   | "ten_kills_round"
-  | "all_skins";
+  | "all_skins"
+  | "master_loop"
+  | "cycle_2"
+  | "cycle_5";
 
 export interface AchievementDef {
   id: AchievementId;
@@ -19,14 +22,17 @@ export interface AchievementDef {
 
 export const ACHIEVEMENTS = {
   list: [
-    { id: "first_5pct",      nameKey: "ach.first_5pct",      target: 1,  rewardCoins: 50  },
-    { id: "survive_round",   nameKey: "ach.survive_round",   target: 1,  rewardCoins: 100 },
-    { id: "kill_with_ghost", nameKey: "ach.kill_with_ghost", target: 1,  rewardCoins: 100 },
-    { id: "top1_streak3",    nameKey: "ach.top1_streak3",    target: 3,  rewardCoins: 300 },
-    { id: "capture_50pct",   nameKey: "ach.capture_50pct",   target: 1,  rewardCoins: 150 },
-    { id: "capture_100pct",  nameKey: "ach.capture_100pct",  target: 1,  rewardCoins: 500 },
-    { id: "ten_kills_round", nameKey: "ach.ten_kills_round", target: 10, rewardCoins: 200 },
+    { id: "first_5pct",      nameKey: "ach.first_5pct",      target: 1,  rewardCoins: 50   },
+    { id: "survive_round",   nameKey: "ach.survive_round",   target: 1,  rewardCoins: 100  },
+    { id: "kill_with_ghost", nameKey: "ach.kill_with_ghost", target: 1,  rewardCoins: 100  },
+    { id: "top1_streak3",    nameKey: "ach.top1_streak3",    target: 3,  rewardCoins: 300  },
+    { id: "capture_50pct",   nameKey: "ach.capture_50pct",   target: 1,  rewardCoins: 150  },
+    { id: "capture_100pct",  nameKey: "ach.capture_100pct",  target: 1,  rewardCoins: 500  },
+    { id: "ten_kills_round", nameKey: "ach.ten_kills_round", target: 10, rewardCoins: 200  },
     { id: "all_skins",       nameKey: "ach.all_skins",       target: 12, rewardCoins: 1000 },
+    { id: "master_loop",     nameKey: "ach.master_loop",     target: 1,  rewardCoins: 2000 },
+    { id: "cycle_2",         nameKey: "ach.cycle_2",         target: 2,  rewardCoins: 200  },
+    { id: "cycle_5",         nameKey: "ach.cycle_5",         target: 5,  rewardCoins: 500  },
   ] satisfies AchievementDef[],
 } as const;
 

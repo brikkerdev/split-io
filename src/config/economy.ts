@@ -1,4 +1,4 @@
-// Soft currency + daily reward. GDD §3, persona insight #8.
+// Soft currency + daily reward. GDD §3 §5, persona insight #8.
 
 export const ECONOMY = {
   startingCoins: 0,
@@ -8,6 +8,11 @@ export const ECONOMY = {
   rewardedDoubleMult: 2,
   rewardMultiplier: 1,
   costGrowthRate: 1.25,
+
+  /** Award 1 coin per this many percent of territory gained. GDD §5. */
+  coinsPerTerritoryStepPct: 2,
+  /** Coins awarded per kill (trail cut where killer=hero, victim!=hero). GDD §5. */
+  coinsPerKill: 1,
 } as const;
 
 export type EconomyConfig = typeof ECONOMY;

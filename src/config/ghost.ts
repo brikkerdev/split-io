@@ -8,10 +8,8 @@ export const GHOST = {
   homingTurnRateRadPerSec: 4,
   inOwnHomeMaxSec: 0.5,
 
-  speedMult: 1.6,
-  fallbackSpeedMult: 1.1,
-  homingDelayBonusMaxSec: 6,
-  homingDelayUpgradeStepSec: 1,
+  speedMult: 2.2,
+  fallbackSpeedMult: 1.4,
 
   trailHueShift: 0.08,
 
@@ -26,6 +24,9 @@ export const GHOST = {
   cooldownFirstRoundSec: 4,
   cooldownMinSec: 3,
   cooldownStepSec: 1,
+
+  /** How often (ms) to re-scan for nearest player territory cell during homing. */
+  homingTargetUpdateMs: 200,
 } as const;
 
 export type GhostConfig = typeof GHOST;

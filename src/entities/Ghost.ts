@@ -15,11 +15,25 @@ export class Ghost implements Unit {
   age = 0;
   phase: GhostPhase = "prefly";
   inHomeTimer = 0;
+  /** Set true once the ghost has been outside its home territory at least once. */
+  hasLeftHome = false;
+
+  /**
+   * Snapshot of the parent's trail polyline at the moment of spawn.
+   * Prepended to the ghost's own polyline when closing a loop — so the
+   * player's pre-launch route is included in the captured area.
+   * Cleared on every spawn.
+   */
+  spawnPolyline: Vec2[] = [];
+
   /** World position recorded at spawn — used by GhostSystem to gate trail recording. */
   spawnPos: Vec2 = { x: 0, y: 0 };
 
   /** Effective prefly duration, may be extended by upgrades. */
   preflySec: number = GHOST.preflySec;
+
+  /** Effective max lifetime, may be extended by ghostLifetime upgrade. */
+  maxLifetimeSec: number = GHOST.maxLifetimeSec;
 
   /**
    * World-space position history for smooth trail rendering.
@@ -32,15 +46,18 @@ export class Ghost implements Unit {
     this.parentId = parentId;
   }
 
-  spawn(pos: Vec2, heading: number, speed: number, preflySec: number): void {
+  spawn(pos: Vec2, heading: number, speed: number, preflySec: number, maxLifetimeSec?: number): void {
     this.pos = { x: pos.x, y: pos.y };
     this.spawnPos = { x: pos.x, y: pos.y };
     this.heading = heading;
     this.speedCellsPerSec = speed;
     this.preflySec = preflySec;
+    this.maxLifetimeSec = maxLifetimeSec ?? GHOST.maxLifetimeSec;
     this.age = 0;
     this.phase = "prefly";
     this.inHomeTimer = 0;
+    this.hasLeftHome = false;
+    this.spawnPolyline = [];
     this.alive = true;
   }
 
@@ -56,7 +73,7 @@ export class Ghost implements Unit {
 
     if (this.phase === "prefly" && this.age >= this.preflySec) {
       this.phase = "homing";
-    } else if (this.phase === "homing" && this.age >= GHOST.maxLifetimeSec) {
+    } else if (this.phase === "homing" && this.age >= this.maxLifetimeSec) {
       this.phase = "fallback";
     }
 

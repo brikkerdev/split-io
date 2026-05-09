@@ -6,10 +6,17 @@ import type {
   LeaderboardEntry,
   LeaderboardUpdatePayload,
   UpgradeOfferPayload,
+  CoinEarnedPayload,
+  CoinTotalPayload,
 } from "@gametypes/events";
 import { t } from "./i18n";
 
+interface CycleStartPayload {
+  cycle: number;
+}
+
 const LEADERBOARD_VISIBLE = 5;
+const COIN_FLYER_MAX = 8;
 
 function colorToHex(c: number): string {
   return `#${c.toString(16).padStart(6, "0")}`;
@@ -27,7 +34,7 @@ function escapeHtml(s: string): string {
   });
 }
 
-const RING_RADIUS = 38;
+const RING_RADIUS = 46;
 const RING_CIRC = 2 * Math.PI * RING_RADIUS;
 
 export class DomHUD {
@@ -37,10 +44,44 @@ export class DomHUD {
   private splitRingEl!: SVGCircleElement;
   private splitRingWrap!: HTMLElement;
   private splitLabelEl!: HTMLElement;
+  private coinsEl!: HTMLElement;
+  private coinsCountEl!: HTMLElement;
+  private cycleLabelEl!: HTMLElement;
 
   private gameEvents!: Phaser.Events.EventEmitter;
   private game!: Phaser.Game;
   private heroId = 0; // kept for API compat — leaderboard uses isHero flag from payload
+
+  private activeFlyerCount = 0;
+
+  // Leaderboard diff cache — avoid full innerHTML rebuild when data is unchanged
+  private lbCacheKey = "";
+
+  // Hero percent tick animation state
+  private _heroPctEl: HTMLElement | null = null;
+  private _heroPctDisplayed = 0;
+  private _heroPctTarget = 0;
+  private _heroPctRaf = 0;
+  private _heroPctStart = 0;
+  private _heroPctFrom = 0;
+  private _heroPctBouncing = false;
+
+  // Coin flyer rect cache — refreshed on resize, not per-flyer
+  private cachedCanvasRect: DOMRect | null = null;
+  private cachedOverlayRect: DOMRect | null = null;
+  private cachedCounterRect: DOMRect | null = null;
+  private rectCacheRaf = 0;
+
+  // Joystick cached half-width — read once on show, not on every move
+  private stickBaseRadius = 0;
+
+  // RAF handle for batched joystick knob writes
+  private joystickRaf = 0;
+  private pendingKnobDx = 0;
+  private pendingKnobDy = 0;
+
+  // Coin pulse — track whether animation is already running
+  private coinPulseTimeout: ReturnType<typeof globalThis.setTimeout> | 0 = 0;
 
   // Floating joystick DOM elements (mobile only)
   private stickBase!: HTMLElement;
@@ -62,6 +103,9 @@ export class DomHUD {
     this.gameEvents = gameEvents;
     this.gameEvents.on(GameEvents.LeaderboardUpdate, this.onLeaderboard, this);
     this.gameEvents.on(GameEvents.SplitCooldown, this.onSplitCooldown, this);
+    this.gameEvents.on(GameEvents.CoinTotalChanged, this.onCoinTotal, this);
+    this.gameEvents.on(GameEvents.CoinEarned, this.onCoinEarned, this);
+    this.gameEvents.on(GameEvents.CycleStart, this.onCycleStart, this);
     this.gameEvents.on(JoystickEvents.Show, this.onJoystickShow, this);
     this.gameEvents.on(JoystickEvents.Move, this.onJoystickMove, this);
     this.gameEvents.on(JoystickEvents.Hide, this.onJoystickHide, this);
@@ -69,21 +113,60 @@ export class DomHUD {
     const overlay = document.getElementById("ui-overlay");
     overlay?.appendChild(this.root);
 
+    // Move the joystick out of #ui-overlay. The overlay runs CSS shake
+    // animations (`transform: translate`) on capture/death, and a transformed
+    // ancestor pulls `position: fixed` descendants along with it. Hosting the
+    // stick in <body> keeps it anchored to the cursor regardless of HUD shake.
+    document.body.appendChild(this.stickBase);
+
     // Animate in
     requestAnimationFrame(() => {
       this.root.classList.add("visible");
     });
+
+    // Invalidate rect cache on resize so coin flyers don't drift.
+    // Phaser relays window resize via scale.RESIZE — no need for a separate window listener.
+    game.scale.on(Phaser.Scale.Events.RESIZE, this.invalidateRectCache);
   }
 
   unmount(): void {
     this.root.classList.remove("visible");
     setTimeout(() => {
       this.root.remove();
+      this.stickBase.remove();
     }, 160);
+
+    if (this.game?.scale) {
+      this.game.scale.off(Phaser.Scale.Events.RESIZE, this.invalidateRectCache);
+    }
+
+    if (this.joystickRaf) {
+      cancelAnimationFrame(this.joystickRaf);
+      this.joystickRaf = 0;
+    }
+
+    if (this._heroPctRaf) {
+      cancelAnimationFrame(this._heroPctRaf);
+      this._heroPctRaf = 0;
+    }
+    this._heroPctEl = null;
+
+    if (this.rectCacheRaf) {
+      cancelAnimationFrame(this.rectCacheRaf);
+      this.rectCacheRaf = 0;
+    }
+
+    if (this.coinPulseTimeout) {
+      clearTimeout(this.coinPulseTimeout);
+      this.coinPulseTimeout = 0;
+    }
 
     if (this.gameEvents) {
       this.gameEvents.off(GameEvents.LeaderboardUpdate, this.onLeaderboard, this);
       this.gameEvents.off(GameEvents.SplitCooldown, this.onSplitCooldown, this);
+      this.gameEvents.off(GameEvents.CoinTotalChanged, this.onCoinTotal, this);
+      this.gameEvents.off(GameEvents.CoinEarned, this.onCoinEarned, this);
+      this.gameEvents.off(GameEvents.CycleStart, this.onCycleStart, this);
       this.gameEvents.off(JoystickEvents.Show, this.onJoystickShow, this);
       this.gameEvents.off(JoystickEvents.Move, this.onJoystickMove, this);
       this.gameEvents.off(JoystickEvents.Hide, this.onJoystickHide, this);
@@ -104,6 +187,11 @@ export class DomHUD {
       </button>
 
       <div class="hud-top">
+        <div class="hud-coins" id="hud-coins">
+          <i class="ph ph-coin hud-coins__icon"></i>
+          <span class="hud-coins__count" id="hud-coins-count">0</span>
+          <span class="hud-cycle-label" id="hud-cycle-label"></span>
+        </div>
         <div class="hud-leaderboard" id="hud-leaderboard">
           <span class="hud-leaderboard__label" data-i18n="hud_leaderboard"></span>
           <ol class="hud-leaderboard__list" id="hud-lb-list"></ol>
@@ -112,10 +200,10 @@ export class DomHUD {
 
       <div class="hud-split" id="hud-split">
         <div class="hud-split__ring" id="hud-split-ring">
-          <svg viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg">
-            <circle class="hud-split__ring-bg" cx="44" cy="44" r="${RING_RADIUS}"/>
+          <svg viewBox="0 0 110 110" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+            <circle class="hud-split__ring-bg" cx="55" cy="55" r="${RING_RADIUS}"/>
             <circle class="hud-split__ring-fill" id="hud-ring-fill"
-              cx="44" cy="44" r="${RING_RADIUS}"
+              cx="55" cy="55" r="${RING_RADIUS}"
               stroke-dasharray="${RING_CIRC}"
               stroke-dashoffset="${RING_CIRC}"/>
           </svg>
@@ -139,6 +227,9 @@ export class DomHUD {
     this.splitRingEl = this.root.querySelector("#hud-ring-fill") as unknown as SVGCircleElement;
     this.splitRingWrap = this.root.querySelector("#hud-split-ring") as HTMLElement;
     this.splitLabelEl = this.root.querySelector("#hud-split-label") as HTMLElement;
+    this.coinsEl = this.root.querySelector("#hud-coins") as HTMLElement;
+    this.coinsCountEl = this.root.querySelector("#hud-coins-count") as HTMLElement;
+    this.cycleLabelEl = this.root.querySelector("#hud-cycle-label") as HTMLElement;
     this.stickBase = this.root.querySelector("#joystick-base") as HTMLElement;
     this.stickKnob = this.root.querySelector("#joystick-knob") as HTMLElement;
 
@@ -148,30 +239,207 @@ export class DomHUD {
     });
   }
 
+  // ── Rect cache ────────────────────────────────────────────
+
+  private readonly invalidateRectCache = (): void => {
+    if (this.rectCacheRaf) return;
+    this.rectCacheRaf = requestAnimationFrame(() => {
+      this.rectCacheRaf = 0;
+      this.cachedCanvasRect = null;
+      this.cachedOverlayRect = null;
+      this.cachedCounterRect = null;
+    });
+  };
+
+  private getCanvasRect(): DOMRect {
+    if (!this.cachedCanvasRect) {
+      this.cachedCanvasRect = this.game.canvas.getBoundingClientRect();
+    }
+    return this.cachedCanvasRect;
+  }
+
+  private getOverlayRect(overlay: HTMLElement): DOMRect {
+    if (!this.cachedOverlayRect) {
+      this.cachedOverlayRect = overlay.getBoundingClientRect();
+    }
+    return this.cachedOverlayRect;
+  }
+
+  private getCounterRect(): DOMRect {
+    if (!this.cachedCounterRect) {
+      this.cachedCounterRect = this.coinsEl.getBoundingClientRect();
+    }
+    return this.cachedCounterRect;
+  }
+
   // ── Event handlers ────────────────────────────────────────
+
+  private onCoinTotal(payload: CoinTotalPayload): void {
+    this.coinsCountEl.textContent = String(payload.total);
+  }
+
+  private onCycleStart(payload: CycleStartPayload): void {
+    if (payload.cycle > 0) {
+      this.cycleLabelEl.textContent = t("cycle_label").replace("%{n}", String(payload.cycle));
+    }
+  }
+
+  private onCoinEarned(payload: CoinEarnedPayload): void {
+    if (this.activeFlyerCount >= COIN_FLYER_MAX) {
+      return;
+    }
+
+    const overlay = document.getElementById("ui-overlay");
+    if (!overlay) return;
+
+    // Use cached rects — one getBCR per frame max (invalidated on resize)
+    const rect = this.getCanvasRect();
+    const overlayRect = this.getOverlayRect(overlay);
+    const counterRect = this.getCounterRect();
+
+    const cam = this.game.scene.getScene("Game")
+      ? (this.game.scene.getScene("Game") as unknown as { cameras?: { main?: { scrollX: number; scrollY: number; zoom: number } } }).cameras?.main
+      : null;
+
+    const zoom = cam?.zoom ?? 1;
+    const scrollX = cam?.scrollX ?? 0;
+    const scrollY = cam?.scrollY ?? 0;
+
+    const scaleX = rect.width / this.game.scale.width;
+    const scaleY = rect.height / this.game.scale.height;
+
+    const screenX = rect.left + (payload.worldX - scrollX) * zoom * scaleX - overlayRect.left;
+    const screenY = rect.top + (payload.worldY - scrollY) * zoom * scaleY - overlayRect.top;
+
+    const targetX = counterRect.left + counterRect.width / 2 - overlayRect.left;
+    const targetY = counterRect.top + counterRect.height / 2 - overlayRect.top;
+
+    const flyer = document.createElement("div");
+    flyer.className = "coin-flyer";
+    flyer.textContent = "+1";
+    flyer.style.left = `${screenX}px`;
+    flyer.style.top = `${screenY}px`;
+    overlay.appendChild(flyer);
+
+    this.activeFlyerCount++;
+
+    // Schedule transform in next frame to avoid forced sync layout on insertion
+    requestAnimationFrame(() => {
+      flyer.style.transform = `translate(${targetX - screenX}px, ${targetY - screenY}px)`;
+      flyer.style.opacity = "0";
+    });
+
+    const cleanup = (): void => {
+      flyer.remove();
+      this.activeFlyerCount--;
+      this.triggerCoinPulse();
+    };
+
+    flyer.addEventListener("transitionend", cleanup, { once: true });
+    globalThis.setTimeout(cleanup, 700);
+  }
+
+  private triggerCoinPulse(): void {
+    if (this.coinPulseTimeout) {
+      // Animation already scheduled — just let it finish, counter text is already updated
+      return;
+    }
+    // CSS-only restart: remove class, let RAF confirm it's gone, re-add
+    this.coinsEl.classList.remove("hud-coins--pulse");
+    requestAnimationFrame(() => {
+      this.coinsEl.classList.add("hud-coins--pulse");
+      this.coinPulseTimeout = globalThis.setTimeout(() => {
+        this.coinsEl.classList.remove("hud-coins--pulse");
+        this.coinPulseTimeout = 0;
+      }, 200);
+    });
+  }
 
   private onLeaderboard(payload: LeaderboardUpdatePayload): void {
     const top = payload.entries.slice(0, LEADERBOARD_VISIBLE);
     const heroIncluded = top.some((e) => e.isHero);
 
-    const rows: string[] = [];
+    // Build a lightweight cache key to detect unchanged payloads
+    let cacheKey = "";
     for (let i = 0; i < top.length; i++) {
-      const entry = top[i] as LeaderboardEntry;
-      rows.push(this.renderRow(i + 1, entry));
+      const e = top[i] as LeaderboardEntry;
+      cacheKey += `${e.id}:${e.percent.toFixed(1)}:${e.alive ? 1 : 0}:${e.isHero ? 1 : 0}|`;
     }
-
     if (!heroIncluded) {
       const heroEntry = payload.entries.find((e) => e.isHero);
       if (heroEntry) {
-        rows.push(`<li class="hud-lb__sep" aria-hidden="true">…</li>`);
-        rows.push(this.renderRow(payload.heroRank, heroEntry));
+        cacheKey += `hero:${payload.heroRank}:${heroEntry.percent.toFixed(1)}:${heroEntry.alive ? 1 : 0}`;
       }
     }
 
-    this.leaderboardListEl.innerHTML = rows.join("");
+    if (cacheKey === this.lbCacheKey) return;
+    this.lbCacheKey = cacheKey;
+
+    // Build desired row data
+    const desired: Array<{ rank: number; entry: LeaderboardEntry; sep: boolean }> = [];
+    for (let i = 0; i < top.length; i++) {
+      desired.push({ rank: i + 1, entry: top[i] as LeaderboardEntry, sep: false });
+    }
+    if (!heroIncluded) {
+      const heroEntry = payload.entries.find((e) => e.isHero);
+      if (heroEntry) {
+        desired.push({ rank: -1, entry: heroEntry, sep: true });
+        desired.push({ rank: payload.heroRank, entry: heroEntry, sep: false });
+      }
+    }
+
+    const list = this.leaderboardListEl;
+    const existing = list.children;
+
+    // Patch existing nodes, add/remove only when count changes
+    for (let di = 0; di < desired.length; di++) {
+      const d = desired[di];
+      if (!d) continue;
+      if (di < existing.length) {
+        const li = existing[di] as HTMLLIElement;
+        if (d.sep) {
+          if (!li.classList.contains("hud-lb__sep")) {
+            li.className = "hud-lb__sep";
+            li.setAttribute("aria-hidden", "true");
+            li.textContent = "…";
+            this.clearRowSpans(li);
+          }
+        } else {
+          this.patchRow(li, d.rank, d.entry);
+        }
+      } else {
+        const li = document.createElement("li");
+        if (d.sep) {
+          li.className = "hud-lb__sep";
+          li.setAttribute("aria-hidden", "true");
+          li.textContent = "…";
+        } else {
+          this.buildRowSpans(li);
+          this.patchRow(li, d.rank, d.entry);
+        }
+        list.appendChild(li);
+      }
+    }
+
+    // Remove excess nodes
+    while (list.children.length > desired.length) {
+      list.lastElementChild?.remove();
+    }
   }
 
-  private renderRow(rank: number, entry: LeaderboardEntry): string {
+  private clearRowSpans(li: HTMLLIElement): void {
+    li.innerHTML = "";
+  }
+
+  private buildRowSpans(li: HTMLLIElement): void {
+    li.innerHTML =
+      '<span class="hud-lb__rank"></span>' +
+      '<span class="hud-lb__swatch"></span>' +
+      '<span class="hud-lb__name"></span>' +
+      '<span class="hud-lb__pct"></span>';
+  }
+
+  private patchRow(li: HTMLLIElement, rank: number, entry: LeaderboardEntry): void {
     const cls = [
       "hud-lb__row",
       entry.isHero ? "is-hero" : "",
@@ -179,25 +447,51 @@ export class DomHUD {
     ]
       .filter(Boolean)
       .join(" ");
+
+    if (li.className !== cls) li.className = cls;
+
+    // Ensure spans exist (li may have been a sep before)
+    if (!li.querySelector(".hud-lb__rank")) {
+      this.buildRowSpans(li);
+    }
+
+    const spans = li.children;
+    const rankEl = spans[0] as HTMLElement;
+    const swatchEl = spans[1] as HTMLElement;
+    const nameEl = spans[2] as HTMLElement;
+    const pctEl = spans[3] as HTMLElement;
+
+    const rankStr = String(rank);
+    if (rankEl.textContent !== rankStr) rankEl.textContent = rankStr;
+
     const swatch = colorToHex(entry.color);
+    if (swatchEl.style.background !== swatch) swatchEl.style.background = swatch;
+
     const name = escapeHtml(entry.name);
-    const pct = entry.percent.toFixed(1);
-    return (
-      `<li class="${cls}">` +
-      `<span class="hud-lb__rank">${rank}</span>` +
-      `<span class="hud-lb__swatch" style="background:${swatch}"></span>` +
-      `<span class="hud-lb__name">${name}</span>` +
-      `<span class="hud-lb__pct">${pct}%</span>` +
-      `</li>`
-    );
+    if (nameEl.textContent !== name) nameEl.textContent = name;
+
+    if (entry.isHero) {
+      // Animated tick for hero row only.
+      const next = entry.percent;
+      if (Math.abs(next - this._heroPctTarget) >= 0.05) {
+        this._animateHeroPct(pctEl, this._heroPctDisplayed, next);
+      }
+    } else {
+      const pct = `${entry.percent.toFixed(1)}%`;
+      if (pctEl.textContent !== pct) pctEl.textContent = pct;
+    }
   }
 
   private onSplitCooldown(payload: CooldownUpdatePayload): void {
-    const filled = RING_CIRC * payload.ratio;
+    const total = payload.total > 0 ? payload.total : 1;
+    const ratio = Math.max(0, Math.min(1, 1 - payload.remaining / total));
+    const ready = payload.remaining <= 0;
+
+    const filled = RING_CIRC * ratio;
     const offset = RING_CIRC - filled;
     this.splitRingEl.setAttribute("stroke-dashoffset", String(offset));
 
-    if (payload.ready) {
+    if (ready) {
       this.splitRingWrap.classList.add("ready");
       this.splitLabelEl.textContent = t("hud_split_ready");
     } else {
@@ -206,22 +500,105 @@ export class DomHUD {
     }
   }
 
+  /**
+   * Phaser pointer coords are in game-space (canvas internal resolution).
+   * Convert to viewport-space CSS pixels — the joystick is `position: fixed`
+   * in <body>, so its left/top are viewport-relative.
+   */
+  private gameToViewport(gx: number, gy: number): { x: number; y: number } {
+    const canvas = this.game?.canvas;
+    if (!canvas) return { x: gx, y: gy };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width / this.game.scale.width;
+    const scaleY = rect.height / this.game.scale.height;
+    return {
+      x: rect.left + gx * scaleX,
+      y: rect.top + gy * scaleY,
+    };
+  }
+
   private onJoystickShow(payload: JoystickShowPayload): void {
-    const r = this.stickBase.offsetWidth / 2;
-    this.stickBase.style.left = `${payload.originX - r}px`;
-    this.stickBase.style.top = `${payload.originY - r}px`;
+    // Cache offsetWidth here so onJoystickMove never reads layout
+    this.stickBaseRadius = this.stickBase.offsetWidth / 2;
+
+    const p = this.gameToViewport(payload.originX, payload.originY);
+    this.stickBase.style.left = `${p.x - this.stickBaseRadius}px`;
+    this.stickBase.style.top = `${p.y - this.stickBaseRadius}px`;
     this.stickKnob.style.transform = "translate(-50%, -50%)";
     this.stickBase.classList.add("active");
   }
 
   private onJoystickMove(payload: JoystickMovePayload): void {
-    const dx = payload.knobX - payload.originX;
-    const dy = payload.knobY - payload.originY;
-    this.stickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    const o = this.gameToViewport(payload.originX, payload.originY);
+    const k = this.gameToViewport(payload.knobX, payload.knobY);
+    this.pendingKnobDx = k.x - o.x;
+    this.pendingKnobDy = k.y - o.y;
+
+    // Batch: schedule write once per frame
+    if (!this.joystickRaf) {
+      this.joystickRaf = requestAnimationFrame(() => {
+        this.joystickRaf = 0;
+        this.stickKnob.style.transform =
+          `translate(calc(-50% + ${this.pendingKnobDx}px), calc(-50% + ${this.pendingKnobDy}px))`;
+      });
+    }
   }
 
   private onJoystickHide(_payload: unknown): void {
+    if (this.joystickRaf) {
+      cancelAnimationFrame(this.joystickRaf);
+      this.joystickRaf = 0;
+    }
     this.stickBase.classList.remove("active");
     this.stickKnob.style.transform = "translate(-50%, -50%)";
+  }
+
+  // ── Hero percent tick ─────────────────────────────────────
+
+  private _animateHeroPct(el: HTMLElement, from: number, to: number): void {
+    if (this._heroPctRaf) {
+      cancelAnimationFrame(this._heroPctRaf);
+      this._heroPctRaf = 0;
+    }
+
+    const increasing = to > from;
+    this._heroPctEl = el;
+    this._heroPctFrom = from;
+    this._heroPctTarget = to;
+    this._heroPctStart = performance.now();
+
+    if (increasing && !this._heroPctBouncing) {
+      this._heroPctBouncing = true;
+      el.classList.remove("hud-lb__pct--bounce");
+      // Force reflow to restart animation.
+      void el.offsetWidth;
+      el.classList.add("hud-lb__pct--bounce");
+      const bounceDuration = 220;
+      globalThis.setTimeout(() => {
+        el.classList.remove("hud-lb__pct--bounce");
+        this._heroPctBouncing = false;
+      }, bounceDuration);
+    }
+
+    const tickDuration = 80;
+    const step = (now: number): void => {
+      const elapsed = now - this._heroPctStart;
+      const t = Math.min(1, elapsed / tickDuration);
+      const current = this._heroPctFrom + (this._heroPctTarget - this._heroPctFrom) * t;
+      this._heroPctDisplayed = current;
+      if (this._heroPctEl) {
+        this._heroPctEl.textContent = `${current.toFixed(1)}%`;
+      }
+      if (t < 1) {
+        this._heroPctRaf = requestAnimationFrame(step);
+      } else {
+        this._heroPctRaf = 0;
+        this._heroPctDisplayed = this._heroPctTarget;
+        if (this._heroPctEl) {
+          this._heroPctEl.textContent = `${this._heroPctTarget.toFixed(1)}%`;
+        }
+      }
+    };
+    this._heroPctRaf = requestAnimationFrame(step);
   }
 }

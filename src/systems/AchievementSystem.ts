@@ -4,6 +4,7 @@ import { GameEvents } from "@events/GameEvents";
 import { saves } from "@systems/SaveManager";
 import type { SaveV1 } from "@/types/save";
 import type { RoundBreakdown } from "@gametypes/round";
+import type { CoinSystem } from "@systems/CoinSystem";
 
 interface TerritoryUpdatePayload {
   owner: number;
@@ -35,6 +36,7 @@ const SURVIVE_MIN_SEC = 60;
 export class AchievementSystem {
   private scene: Phaser.Scene;
   private heroId: number;
+  private coinSys: CoinSystem | null;
 
   // Per-round trackers
   private roundKills = 0;
@@ -50,22 +52,26 @@ export class AchievementSystem {
   private boundOnGhostDestroyed: (payload: GhostDestroyedPayload) => void;
   private boundOnGhostSpawned: () => void;
   private boundOnRoundEnd: (breakdown: RoundBreakdown) => void;
+  private boundOnCycleStart: (payload: { cycle: number }) => void;
 
-  constructor(scene: Phaser.Scene, heroId: number) {
+  constructor(scene: Phaser.Scene, heroId: number, coinSys: CoinSystem | null = null) {
     this.scene = scene;
     this.heroId = heroId;
+    this.coinSys = coinSys;
 
     this.boundOnTerritoryUpdate = this.onTerritoryUpdate.bind(this);
     this.boundOnTrailCut = this.onTrailCut.bind(this);
     this.boundOnGhostDestroyed = this.onGhostDestroyed.bind(this);
     this.boundOnGhostSpawned = this.onGhostSpawned.bind(this);
     this.boundOnRoundEnd = this.onRoundEnd.bind(this);
+    this.boundOnCycleStart = this.onCycleStart.bind(this);
 
     this.scene.events.on(GameEvents.TerritoryUpdate, this.boundOnTerritoryUpdate);
     this.scene.events.on(GameEvents.TrailCut, this.boundOnTrailCut);
     this.scene.events.on(GameEvents.GhostDestroyed, this.boundOnGhostDestroyed);
     this.scene.events.on(GameEvents.GhostSpawned, this.boundOnGhostSpawned);
     this.scene.events.on(GameEvents.RoundEnd, this.boundOnRoundEnd);
+    this.scene.events.on(GameEvents.CycleStart, this.boundOnCycleStart);
   }
 
   resetRound(): void {
@@ -73,6 +79,7 @@ export class AchievementSystem {
     this.ghostActiveKills = 0;
     this.ghostCurrentlyActive = false;
     this.roundStartMs = Date.now();
+    this.countedVictims.clear();
   }
 
   destroy(): void {
@@ -81,6 +88,7 @@ export class AchievementSystem {
     this.scene.events.off(GameEvents.GhostDestroyed, this.boundOnGhostDestroyed);
     this.scene.events.off(GameEvents.GhostSpawned, this.boundOnGhostSpawned);
     this.scene.events.off(GameEvents.RoundEnd, this.boundOnRoundEnd);
+    this.scene.events.off(GameEvents.CycleStart, this.boundOnCycleStart);
   }
 
   // ── Event handlers ────────────────────────────────────────
@@ -92,8 +100,13 @@ export class AchievementSystem {
     if (payload.percent >= 100) this.tryUnlock("capture_100pct");
   }
 
+  private countedVictims = new Set<number>();
+
   private onTrailCut(payload: TrailCutPayload): void {
     if (payload.killer !== this.heroId) return;
+    if (payload.victim === payload.killer) return;
+    if (this.countedVictims.has(payload.victim)) return;
+    this.countedVictims.add(payload.victim);
     this.roundKills += 1;
     if (this.ghostCurrentlyActive) {
       this.ghostActiveKills += 1;
@@ -126,19 +139,36 @@ export class AchievementSystem {
     if (this.top1Streak >= 3) this.tryUnlock("top1_streak3");
   }
 
+  private onCycleStart(payload: { cycle: number }): void {
+    if (payload.cycle >= 2) this.tryUnlock("cycle_2");
+    if (payload.cycle >= 5) this.tryUnlock("cycle_5");
+  }
+
   // ── Unlock logic ──────────────────────────────────────────
 
   tryUnlock(id: AchievementId): void {
     const save = saves.get<SaveV1>();
-    if (save.achievements[id]) return; // idempotent
+    if (save.achievements[id] !== undefined) return; // idempotent — early exit avoids spread
 
     const def = ACHIEVEMENTS.list.find((a) => a.id === id);
     if (!def) return;
 
-    saves.patch({
-      achievements: { ...save.achievements, [id]: Date.now() },
-      coins: save.coins + def.rewardCoins,
-    });
+    // Patch only the single key that changed; SaveManager deep-merges achievements.
+    // Coins are routed through CoinSystem when available so the in-round Economy
+    // and HUD stay in sync (PhaseController persists coins from Economy on round
+    // end and would otherwise clobber a direct save patch).
+    if (this.coinSys && def.rewardCoins > 0) {
+      this.coinSys.addCoins(def.rewardCoins);
+      saves.patch({
+        achievements: { [id]: Date.now() } as Record<string, number>,
+        coins: this.coinSys.getTotalCoins(),
+      });
+    } else {
+      saves.patch({
+        achievements: { [id]: Date.now() } as Record<string, number>,
+        coins: save.coins + def.rewardCoins,
+      });
+    }
 
     const payload: AchievementUnlockedPayload = {
       id,

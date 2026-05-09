@@ -15,6 +15,68 @@ export class DomLeaderboardModal {
   mount(container: HTMLElement): void {
     container.appendChild(this.root);
     requestAnimationFrame(() => this.root.classList.add("visible"));
+    if (this.shouldAskConsent()) {
+      this.renderConsent();
+    } else {
+      this.fetchAndRender();
+    }
+  }
+
+  private shouldAskConsent(): boolean {
+    return this.lb.getPendingScore() > 0 && !this.lb.canSubmit();
+  }
+
+  private renderConsent(): void {
+    const body = this.body();
+    body.innerHTML = "";
+
+    const wrap = document.createElement("div");
+    wrap.className = "lb-consent";
+
+    const title = document.createElement("div");
+    title.className = "lb-consent__title";
+    title.textContent = t("leaderboard_consent_title");
+
+    const text = document.createElement("p");
+    text.className = "lb-consent__text";
+    text.textContent = t("leaderboard_consent_text");
+
+    const pending = document.createElement("div");
+    pending.className = "lb-consent__pending";
+    pending.textContent = t("leaderboard_consent_pending", {
+      score: String(this.lb.getPendingScore()),
+    });
+
+    const row = document.createElement("div");
+    row.className = "lb-consent__buttons";
+
+    const accept = document.createElement("button");
+    accept.className = "btn btn-primary";
+    accept.textContent = t("leaderboard_consent_accept");
+    accept.addEventListener("click", () => void this.handleConsentAccept(accept));
+
+    const decline = document.createElement("button");
+    decline.className = "btn";
+    decline.textContent = t("leaderboard_consent_decline");
+    decline.addEventListener("click", () => this.fetchAndRender());
+
+    row.appendChild(accept);
+    row.appendChild(decline);
+
+    wrap.appendChild(title);
+    wrap.appendChild(text);
+    wrap.appendChild(pending);
+    wrap.appendChild(row);
+    body.appendChild(wrap);
+  }
+
+  private async handleConsentAccept(btn: HTMLButtonElement): Promise<void> {
+    btn.disabled = true;
+    const ok = await this.lb.grantConsentAndFlush();
+    if (!ok) {
+      btn.disabled = false;
+      return;
+    }
     this.fetchAndRender();
   }
 

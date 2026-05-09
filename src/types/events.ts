@@ -15,8 +15,8 @@ export interface TimerTickPayload {
 }
 
 export interface CooldownUpdatePayload {
-  ratio: number;
-  ready: boolean;
+  remaining: number;
+  total: number;
 }
 
 export interface SplitFiredPayload {
@@ -37,6 +37,15 @@ export interface TerritoryCapturedPayload {
   ownerId: ActorId;
   cells: number;
   pct: number;
+  /** Percent of arena gained by this single capture event. */
+  gainedPct?: number;
+  /**
+   * World-space seed point for wave-fill animation.
+   * For trail closures: the closure point.
+   * For transfer (bot kill): the position of the victim at death.
+   */
+  seedX?: number;
+  seedY?: number;
 }
 
 export interface LeaderboardEntry {
@@ -85,13 +94,25 @@ export interface TrailCellAddedPayload {
 /** Emitted when a trail loop closes (hero↔ghost or trail↔own territory). */
 export interface TrailClosedPayload {
   ownerId: ActorId;
-  /** Packed cells (cy*cols+cx) that form the loop perimeter. */
-  cells: readonly number[];
+  /** Polyline of the loop in world-coordinates. PolygonTerritorySystem claims via union. */
+  polyline: readonly Vec2[];
+  /**
+   * Capture mode:
+   * - "flood" (default): flood-fill the enclosed interior and claim it.
+   * - "line": claim only the rasterized loop cells, no interior fill.
+   */
+  mode?: "flood" | "line";
+  /** World-space closure point for wave-fill animation seed. */
+  seedX?: number;
+  seedY?: number;
 }
 
 export interface TrailCutPayload {
   victim: ActorId;
   killer: ActorId;
+  /** World-space coordinates of the cut, if available. Used for FX positioning. */
+  worldX?: number;
+  worldY?: number;
 }
 
 export interface RoundResult {
@@ -102,4 +123,15 @@ export interface RoundResult {
   penalty: number;
   bestNew: boolean;
   rank: number;
+}
+
+export interface CoinEarnedPayload {
+  amount: number;
+  worldX: number;
+  worldY: number;
+  reason: "kill" | "territory" | "daily";
+}
+
+export interface CoinTotalPayload {
+  total: number;
 }

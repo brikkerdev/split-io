@@ -127,9 +127,13 @@
   border-top-color: var(--mint-dark);
   animation: lb-spin 600ms linear infinite;
   flex-shrink: 0;
+  will-change: transform;
 }
 @keyframes lb-spin {
   to { transform: rotate(360deg); }
+}
+.modal-overlay:not(.visible) .lb-spinner::before {
+  animation-play-state: paused;
 }
 
 /* ── Error / empty ────────────────────────────────────────── */
@@ -150,7 +154,47 @@
   padding: 10px 28px;
 }
 
-/* ── Mobile ───────────────────────────────────────────────── */
+/* ── Consent panel ───────────────────────────────────────── */
+.lb-consent {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px;
+  text-align: left;
+}
+.lb-consent__title {
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--ink);
+}
+.lb-consent__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  opacity: 0.92;
+}
+.lb-consent__pending {
+  font-weight: 700;
+  font-size: 16px;
+  padding: 8px 12px;
+  border: 2px solid var(--ink);
+  background: var(--accent-soft, rgba(255, 255, 255, 0.08));
+  border-radius: 6px;
+  text-align: center;
+}
+.lb-consent__buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.lb-consent__buttons .btn {
+  align-self: auto;
+  padding: 10px 20px;
+}
+
+/* ── Mobile 640px ─────────────────────────────────────────── */
 @media (max-width: 640px) {
   .lb-row {
     gap: 8px;
@@ -160,5 +204,53 @@
   }
   .lb-rank {
     box-shadow: 1px 1px 0 var(--ink);
+  }
+}
+
+/* ── Portrait phone (≤480px wide) ────────────────────────── */
+@media (max-width: 480px) {
+  .lb-body {
+    max-height: 55vh;
+    overflow-y: auto;
+  }
+  .lb-row {
+    grid-template-columns: 30px 1fr auto;
+    gap: 6px;
+    padding: 9px 8px;
+    font-size: 13px;
+  }
+  .lb-rank {
+    min-width: 24px;
+    font-size: 11px;
+  }
+  .lb-score {
+    font-size: 12px;
+  }
+  .lb-consent {
+    padding: 14px 12px;
+  }
+  .lb-consent__title {
+    font-size: 15px;
+  }
+  .lb-consent__text {
+    font-size: 13px;
+  }
+  .lb-consent__buttons {
+    flex-direction: column;
+  }
+  .lb-consent__buttons .btn {
+    width: 100%;
+    min-height: var(--mobile-btn-h);
+  }
+}
+
+/* ── Short landscape (≤500px height) ─────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .lb-body {
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+  .lb-row {
+    padding: 7px 8px;
   }
 }

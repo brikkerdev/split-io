@@ -50,8 +50,8 @@ describe("INPUT constants", () => {
     expect(INPUT.rawSmoothingFactor).toBe(0.3);
   });
 
-  it("deadzonePixels is 28", () => {
-    expect(INPUT.deadzonePixels).toBe(28);
+  it("deadzonePixels is 70", () => {
+    expect(INPUT.deadzonePixels).toBe(70);
   });
 
   it("stickRadiusPx is 64", () => {

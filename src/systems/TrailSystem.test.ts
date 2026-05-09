@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { Trail, packCell } from "@entities/Trail";
+import { describe, expect, it } from "vitest";
+import { Trail } from "@entities/Trail";
 import { TrailSystem } from "@systems/TrailSystem";
 import { GameEvents } from "@events/GameEvents";
 import type { TrailClosedPayload, TrailCutPayload } from "@gametypes/events";
@@ -20,15 +20,21 @@ function makeScene() {
   };
 }
 
-function makeGrid(ownerMap: Map<number, number> = new Map()) {
+function makePolyTerritory(ownerMap: Map<string, number> = new Map()) {
+  const ownerAt = (x: number, y: number): number =>
+    ownerMap.get(`${Math.floor(x / 16)},${Math.floor(y / 16)}`) ?? 0;
   return {
-    cols: 128,
-    rows: 128,
-    cellPx: 16,
-    ownerOf(cx: number, cy: number): number {
-      return ownerMap.get(packCell(cx, cy)) ?? 0;
+    ownerAt,
+    isOwnedBy(x: number, y: number, owner: number): boolean {
+      return ownerAt(x, y) === owner;
     },
   };
+}
+
+function makeSys(ownerMap?: Map<string, number>) {
+  const scene = makeScene();
+  const sys = new TrailSystem(scene as never, makePolyTerritory(ownerMap) as never);
+  return { scene, sys };
 }
 
 // ---------------------------------------------------------------------------
@@ -38,161 +44,209 @@ function makeGrid(ownerMap: Map<number, number> = new Map()) {
 describe("Trail", () => {
   it("starts empty and inactive", () => {
     const t = new Trail(1);
-    expect(t.length).toBe(0);
+    expect(t.polylineLength()).toBe(0);
     expect(t.active).toBe(false);
   });
 
-  it("addCell inserts and reports hasCell", () => {
+  it("appendPoint adds points", () => {
     const t = new Trail(1);
-    expect(t.addCell(3, 5)).toBe(true);
-    expect(t.hasCell(3, 5)).toBe(true);
-    expect(t.length).toBe(1);
+    t.appendPoint(10, 20, 0);
+    expect(t.polylineLength()).toBe(1);
+    const pl = t.getPolyline();
+    expect(pl[0]).toEqual({ x: 10, y: 20 });
   });
 
-  it("addCell returns false on duplicate", () => {
+  it("appendPoint respects sampleDist", () => {
     const t = new Trail(1);
-    t.addCell(3, 5);
-    expect(t.addCell(3, 5)).toBe(false);
-    expect(t.length).toBe(1);
-  });
-
-  it("getCells returns insertion-ordered packed values", () => {
-    const t = new Trail(1);
-    t.addCell(1, 0);
-    t.addCell(2, 0);
-    expect(t.getCells()).toEqual([packCell(1, 0), packCell(2, 0)]);
+    t.appendPoint(0, 0, 100);
+    t.appendPoint(5, 0, 100); // dist=25 < 100, skipped
+    expect(t.polylineLength()).toBe(1);
+    t.appendPoint(20, 0, 100); // dist=400 >= 100, added
+    expect(t.polylineLength()).toBe(2);
   });
 
   it("clear resets all state", () => {
     const t = new Trail(1);
-    t.addCell(1, 1);
+    t.appendPoint(1, 1, 0);
     t.setActive(true);
     t.clear();
-    expect(t.length).toBe(0);
+    expect(t.polylineLength()).toBe(0);
     expect(t.active).toBe(false);
-    expect(t.hasCell(1, 1)).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// TrailSystem tests
+// TrailSystem — addPoint and rbush segments
 // ---------------------------------------------------------------------------
 
-describe("TrailSystem.addCellToTrail", () => {
-  it("creates trail and emits trail:cellAdded", () => {
-    const scene = makeScene();
-    const sys = new TrailSystem(scene as never, makeGrid() as never);
-
-    sys.addCellToTrail(1, 4, 7);
-
+describe("TrailSystem.addPoint", () => {
+  it("creates trail and activates it", () => {
+    const { sys } = makeSys();
+    sys.addPoint(1, 100, 100, 0);
     const trail = sys.get(1);
     expect(trail).toBeDefined();
-    expect(trail!.hasCell(4, 7)).toBe(true);
-
-    const ev = scene._emitted[0];
-    expect(ev?.event).toBe(GameEvents.TrailCellAdded);
-    expect(ev?.payload).toMatchObject({ unitId: 1, cx: 4, cy: 7 });
-  });
-});
-
-describe("TrailSystem.checkTrailCollision", () => {
-  it("returns none when no trails overlap", () => {
-    const scene = makeScene();
-    const sys = new TrailSystem(scene as never, makeGrid() as never);
-    sys.addCellToTrail(1, 1, 1);
-    sys.addCellToTrail(2, 5, 5);
-
-    expect(sys.checkTrailCollision(1, 9, 9)).toBe("none");
-    expect(scene._emitted.filter((e) => e.event !== GameEvents.TrailCellAdded)).toHaveLength(0);
+    expect(trail!.active).toBe(true);
+    expect(trail!.polylineLength()).toBe(1);
   });
 
-  it("returns cut and emits trail:cut when hitting enemy trail", () => {
-    const scene = makeScene();
-    const sys = new TrailSystem(scene as never, makeGrid() as never);
+  it("second point creates an rbush segment (checkCollision can find it)", () => {
+    const { sys, scene } = makeSys();
+    sys.addPoint(1, 0, 0, 0);
+    sys.addPoint(1, 100, 0, 0);
 
-    // Unit 2 has a trail at (3,3); unit 1 steps onto it
-    sys.addCellToTrail(2, 3, 3);
-
-    const result = sys.checkTrailCollision(1, 3, 3);
+    // Unit 2 steps near the segment of unit 1 — should be cut
+    const result = sys.checkCollision(2, 50, 0, 20);
     expect(result).toBe("cut");
-
     const cutEv = scene._emitted.find((e) => e.event === GameEvents.TrailCut);
     expect(cutEv).toBeDefined();
     const payload = cutEv!.payload as TrailCutPayload;
-    // Walker (1) steps ONTO trail of unit 2 → trail owner (2) dies.
-    expect(payload.victim).toBe(2);
-    expect(payload.killer).toBe(1);
+    expect(payload.victim).toBe(1);
+    expect(payload.killer).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TrailSystem.checkCollision
+// ---------------------------------------------------------------------------
+
+describe("TrailSystem.checkCollision", () => {
+  it("returns none when no segments nearby", () => {
+    const { sys, scene } = makeSys();
+    sys.addPoint(1, 0, 0, 0);
+    sys.addPoint(1, 100, 0, 0);
+
+    const result = sys.checkCollision(2, 500, 500, 20);
+    expect(result).toBe("none");
+    expect(scene._emitted.filter((e) => e.event === GameEvents.TrailCut)).toHaveLength(0);
   });
 
-  it("returns closed and emits trail:closed when hero hits ghost trail (same group)", () => {
-    const scene = makeScene();
-    const sys = new TrailSystem(scene as never, makeGrid() as never);
-
-    // Hero (id=1) and ghost (id=101) share group 1
+  it("same-group segments do not cut each other", () => {
+    const { sys } = makeSys();
     sys.setPeerGroup(1, [1, 101]);
+    sys.addPoint(1, 0, 0, 0);
+    sys.addPoint(1, 100, 0, 0);
 
-    sys.addCellToTrail(1, 0, 0);
-    sys.addCellToTrail(1, 1, 0);
-    sys.addCellToTrail(101, 5, 0);
-    sys.addCellToTrail(101, 5, 1);
-
-    // Hero walks into ghost's trail
-    const result = sys.checkTrailCollision(1, 5, 0);
-    expect(result).toBe("closed");
-
-    const closedEv = scene._emitted.find((e) => e.event === GameEvents.TrailClosed);
-    expect(closedEv).toBeDefined();
-    const payload = closedEv!.payload as TrailClosedPayload;
-    expect(payload.ownerId).toBe(1);
-    // Combined cells include both trails
-    expect(payload.cells).toContain(packCell(0, 0));
-    expect(payload.cells).toContain(packCell(5, 0));
+    // Unit 101 (same group) steps near unit 1's segment
+    const result = sys.checkCollision(101, 50, 0, 20);
+    expect(result).toBe("none");
   });
 
-  it("returns closed when unit re-enters own territory", () => {
-    // Simulate unit 1 owning cell (10,10)
-    const ownerMap = new Map<number, number>();
-    ownerMap.set(packCell(10, 10), 1);
-    const scene = makeScene();
-    const sys = new TrailSystem(scene as never, makeGrid(ownerMap) as never);
+  it("swept motion segment crosses an enemy trail without endpoint near it", () => {
+    // Reproduces fast-movement tunneling: actor steps from (50,-100) to (50,100)
+    // straight through unit 1's horizontal segment at y=0. Endpoint is far
+    // from the segment (radius 5), so the point-distance check alone misses.
+    const { sys } = makeSys();
+    sys.addPoint(1, 0, 0, 0);
+    sys.addPoint(1, 100, 0, 0);
 
-    sys.addCellToTrail(1, 8, 8);
-    sys.addCellToTrail(1, 9, 8);
+    const result = sys.checkCollision(2, 50, 100, 5, 50, -100);
+    expect(result).toBe("cut");
+  });
 
-    const result = sys.checkTrailCollision(1, 10, 10);
+  it("passive trails cannot be cut", () => {
+    const { sys } = makeSys();
+    sys.addPoint(99, 0, 0, 0);
+    sys.addPoint(99, 100, 0, 0);
+    sys.setPassive(99, true);
+
+    const result = sys.checkCollision(2, 50, 0, 20);
+    expect(result).toBe("none");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TrailSystem.checkClosure
+// ---------------------------------------------------------------------------
+
+describe("TrailSystem.checkClosure", () => {
+  it("returns none when not on own territory", () => {
+    const { sys } = makeSys();
+    sys.addPoint(1, 10, 10, 0);
+    const result = sys.checkClosure(1, 500, 500, 1);
+    expect(result).toBe("none");
+  });
+
+  it("returns none when trail is empty", () => {
+    const ownerMap = new Map([["10,10", 1]]);
+    const { sys } = makeSys(ownerMap);
+    // Do not add any points — trail empty
+    const result = sys.checkClosure(1, 168, 168, 1); // 10*16+8=168
+    expect(result).toBe("none");
+  });
+
+  it("returns closed and emits TrailClosed when on own territory with trail", () => {
+    const ownerMap = new Map([["10,10", 1]]);
+    const { sys, scene } = makeSys(ownerMap);
+    sys.addPoint(1, 50, 50, 0);
+    sys.addPoint(1, 100, 50, 0);
+
+    const result = sys.checkClosure(1, 168, 168, 1); // 168=10*16+8
     expect(result).toBe("closed");
-
-    const closedEv = scene._emitted.find((e) => e.event === GameEvents.TrailClosed);
-    expect(closedEv).toBeDefined();
-    const payload = closedEv!.payload as TrailClosedPayload;
+    const ev = scene._emitted.find((e) => e.event === GameEvents.TrailClosed);
+    expect(ev).toBeDefined();
+    const payload = ev!.payload as TrailClosedPayload;
     expect(payload.ownerId).toBe(1);
   });
 });
 
+// ---------------------------------------------------------------------------
+// TrailSystem.clearTrail
+// ---------------------------------------------------------------------------
+
 describe("TrailSystem.clearTrail", () => {
-  it("clears cells and deactivates trail", () => {
-    const scene = makeScene();
-    const sys = new TrailSystem(scene as never, makeGrid() as never);
-    sys.addCellToTrail(1, 2, 2);
+  it("clears polyline and deactivates trail", () => {
+    const { sys } = makeSys();
+    sys.addPoint(1, 0, 0, 0);
+    sys.addPoint(1, 100, 0, 0);
     sys.clearTrail(1);
 
     const trail = sys.get(1);
-    expect(trail!.length).toBe(0);
+    expect(trail!.polylineLength()).toBe(0);
     expect(trail!.active).toBe(false);
+  });
+
+  it("cleared segments no longer trigger cut", () => {
+    const { sys } = makeSys();
+    sys.addPoint(1, 0, 0, 0);
+    sys.addPoint(1, 100, 0, 0);
+    sys.clearTrail(1);
+
+    const result = sys.checkCollision(2, 50, 0, 20);
+    expect(result).toBe("none");
   });
 });
 
-describe("TrailSystem.setPeerGroup", () => {
-  it("two different groups still cut each other", () => {
-    const scene = makeScene();
-    const sys = new TrailSystem(scene as never, makeGrid() as never);
+// ---------------------------------------------------------------------------
+// TrailSystem.setPeerGroup
+// ---------------------------------------------------------------------------
 
+describe("TrailSystem.setPeerGroup", () => {
+  it("two different groups cut each other", () => {
+    const { sys } = makeSys();
     sys.setPeerGroup(10, [1, 101]);
     sys.setPeerGroup(20, [2, 102]);
 
-    sys.addCellToTrail(2, 4, 4);
+    sys.addPoint(2, 0, 0, 0);
+    sys.addPoint(2, 100, 0, 0);
 
-    const result = sys.checkTrailCollision(1, 4, 4);
+    const result = sys.checkCollision(1, 50, 0, 20);
     expect(result).toBe("cut");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TrailSystem.removeUnit
+// ---------------------------------------------------------------------------
+
+describe("TrailSystem.removeUnit", () => {
+  it("removes unit segments so they no longer cut", () => {
+    const { sys } = makeSys();
+    sys.addPoint(1, 0, 0, 0);
+    sys.addPoint(1, 100, 0, 0);
+    sys.removeUnit(1);
+
+    const result = sys.checkCollision(2, 50, 0, 20);
+    expect(result).toBe("none");
+    expect(sys.get(1)).toBeUndefined();
   });
 });

@@ -22,9 +22,21 @@ export class Hero implements Unit {
   shieldActive = false;
   shieldReadyAt = 0;
   splitReadyAt = 0;
-  homingDelayBonusSec = 0;
 
-  // TODO: spawn(), update(dt), die(), applyUpgrade(id)
+  // ── Upgrade bonus fields ──────────────────────────────────
+
+  /** Cumulative ghost speed bonus multiplier (+0.25 per ghostSpeed stack). */
+  ghostSpeedBonusMult = 0;
+
+  /** Extra seconds added to ghost maxLifetime (+1.5 per ghostLifetime stack). */
+  ghostLifetimeBonusSec = 0;
+
+  /** Total cooldown reduction in seconds (−1 per ghostCooldown stack). */
+  ghostCooldownReductionSec = 0;
+
+  /** Cumulative passive speed bonus multiplier (+0.12 per passiveSpeed stack). */
+  passiveSpeedBonusMult = 0;
+
   spawn(_pos: Vec2): void {
     // TODO
   }

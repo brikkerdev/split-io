@@ -2,7 +2,7 @@ import type Phaser from "phaser";
 import { GameEvents } from "@events/GameEvents";
 import type { Hero } from "@entities/Hero";
 import type { BotAI } from "@systems/BotAI";
-import type { TerritorySystem } from "@systems/TerritorySystem";
+import type { PolygonTerritorySystem } from "@systems/PolygonTerritorySystem";
 import type {
   LeaderboardEntry,
   LeaderboardUpdatePayload,
@@ -13,7 +13,7 @@ export interface LeaderboardDeps {
   hero: Hero;
   heroFill: () => number;
   botAI: BotAI;
-  territory: TerritorySystem;
+  territory: PolygonTerritorySystem;
   isDemoPhase: () => boolean;
 }
 

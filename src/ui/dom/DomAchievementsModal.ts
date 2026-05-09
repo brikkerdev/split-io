@@ -10,10 +10,13 @@ const ACH_ICONS: Record<AchievementId, string> = {
   capture_50pct:   "ph-target",
   capture_100pct:  "ph-crown",
   survive_round:   "ph-clock",
-  kill_with_ghost: "ph-skull",
+  kill_with_ghost: "ph-lightning",
   ten_kills_round: "ph-medal",
   top1_streak3:    "ph-trophy",
   all_skins:       "ph-star",
+  master_loop:     "ph-infinity",
+  cycle_2:         "ph-arrows-clockwise",
+  cycle_5:         "ph-rocket",
 };
 
 export class DomAchievementsModal {

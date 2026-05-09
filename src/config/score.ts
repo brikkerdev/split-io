@@ -1,13 +1,14 @@
 // Score formula coefficients. Source: GDD §2.1.
-// score = territoryPercent * tWeight + remainingSeconds * sWeight + kills * killBonus - deathPenalty
+// score = totalTerritoryCapturedPct * territoryPointsPerPct + cycleCount * cyclePoints + kills * killBonus - deathPenalty
 
 export const SCORE = {
-  territoryWeight: 100,
-  secondWeight: 5,
   killBonus: 500,
+  cyclePoints: 1000,
   deathPenalty: 0,
+  /** Points awarded per 1% of cumulative territory captured. */
+  territoryPointsPerPct: 100,
 
-  leaderboardName: "score_round",
+  leaderboardName: "scoreround",
   bestScoreCelebrateDeltaPct: 0.05,
 } as const;
 

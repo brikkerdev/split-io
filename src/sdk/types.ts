@@ -19,9 +19,19 @@ export interface YsdkRoot {
         onOpen?(): void;
       };
     }): void;
+    showBannerAdv(): void;
+    hideBannerAdv(): void;
+    getBannerAdvStatus(): { stickyAdvIsShowing: boolean; reason?: string };
+  };
+  shortcut?: {
+    canShowPrompt(): Promise<{ canShow: boolean }>;
+    showPrompt(): Promise<{ outcome: "accepted" | "rejected" }>;
   };
   getPlayer(opts: { scopes: boolean }): Promise<YsdkPlayer>;
   getLeaderboards(): Promise<YsdkLeaderboards>;
+  auth: {
+    openAuthDialog(): Promise<void>;
+  };
 }
 
 export interface YsdkPlayer {
@@ -30,6 +40,9 @@ export interface YsdkPlayer {
   getStats(keys?: string[]): Promise<Record<string, number>>;
   setStats(stats: Record<string, number>): Promise<void>;
   incrementStats(stats: Record<string, number>): Promise<Record<string, number>>;
+  getMode?(): "lite" | "";
+  getUniqueID?(): string;
+  getName?(): string;
 }
 
 export interface YsdkLeaderboardEntry {

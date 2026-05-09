@@ -142,4 +142,17 @@ describe("AdSystem — continue rewarded", () => {
     await ad.showRewarded("doubleCoins");
     expect(yandex.showRewarded).toHaveBeenCalledTimes(1);
   });
+
+  it("showRewarded doubleCoins does not touch continueHourlyCount", async () => {
+    mockSaveData.continueHourlyCount = 0;
+    await ad.showRewarded("doubleCoins");
+    expect(saves.patch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ continueHourlyCount: expect.anything() }),
+    );
+  });
+
+  it("showRewarded doubleCoins does not deplete canContinue", async () => {
+    await ad.showRewarded("doubleCoins");
+    expect(ad.canContinue()).toBe(true);
+  });
 });

@@ -1,16 +1,17 @@
 import type { RoundBreakdown } from "@gametypes/round";
+import { SCORE } from "@config/score";
 import { AdSystem } from "@systems/AdSystem";
 import { LeaderboardSystem } from "@systems/LeaderboardSystem";
 import { saves } from "@systems/SaveManager";
 import type { SaveV1 } from "@/types/save";
-import { GameEvents } from "@events/GameEvents";
-import type { AchievementUnlockedPayload } from "@systems/AchievementSystem";
 import { t } from "./i18n";
 
 interface GameOverOptions {
   breakdown: RoundBreakdown;
   isDeath: boolean;
+  coinsEarned: number;
   onContinue: () => Promise<void>;
+  onDoubleCoins: () => Promise<void>;
   onRestart: () => Promise<void>;
   onMenu: () => void;
 }
@@ -21,6 +22,7 @@ export class DomGameOver {
   private game: Phaser.Game | null = null;
   private adSys = new AdSystem();
   private lbSys = new LeaderboardSystem();
+  private doubleCoinsClaimed = false;
 
   constructor() {
     this.root = document.createElement("div");
@@ -30,6 +32,7 @@ export class DomGameOver {
 
   mount(game: Phaser.Game, opts: GameOverOptions): void {
     this.game = game;
+    this.doubleCoinsClaimed = false;
     this.build(opts);
 
     const overlay = document.getElementById("ui-overlay");
@@ -40,27 +43,12 @@ export class DomGameOver {
     });
 
     void this.submitRank(opts.breakdown.total);
-
-    game.events.on(GameEvents.AchievementUnlocked, this.onAchievementUnlocked, this);
   }
 
   unmount(): void {
-    this.game?.events.off(GameEvents.AchievementUnlocked, this.onAchievementUnlocked, this);
     this.root.classList.remove("visible");
     setTimeout(() => this.root.remove(), 160);
     this.game = null;
-  }
-
-  private onAchievementUnlocked(payload: AchievementUnlockedPayload): void {
-    const name = t(payload.nameKey);
-    const msg = t("ach_toast").replace("{name}", name);
-
-    const toast = document.createElement("div");
-    toast.className = "achievement-toast";
-    toast.innerHTML = `<i class="ph ph-trophy"></i> ${msg}`;
-    this.root.appendChild(toast);
-
-    setTimeout(() => toast.remove(), 3500);
   }
 
   // ── Build ─────────────────────────────────────────────────
@@ -117,19 +105,9 @@ export class DomGameOver {
         cls: "cyan",
       },
       {
-        label: t("gameover_speed_bonus"),
-        value: `+${bd.secondsBonus}`,
-        cls: "green",
-      },
-      {
         label: t("gameover_kills"),
-        value: `${bd.kills} × 500  +${bd.killPoints}`,
+        value: `${bd.kills} × ${SCORE.killBonus}  +${bd.killPoints}`,
         cls: "amber",
-      },
-      {
-        label: t("gameover_penalty"),
-        value: bd.penalty > 0 ? `−${bd.penalty}` : "0",
-        cls: bd.penalty > 0 ? "red" : "dim",
       },
     ];
 
@@ -174,6 +152,19 @@ export class DomGameOver {
       continueBtn.innerHTML = `<i class="ph ph-play-circle"></i> ${t("gameover_continue")}`;
       continueBtn.addEventListener("click", () => void opts.onContinue());
       wrap.appendChild(continueBtn);
+    }
+
+    if (opts.coinsEarned > 0 && !this.doubleCoinsClaimed) {
+      const doubleBtn = document.createElement("button");
+      doubleBtn.className = "btn btn-double-coins";
+      doubleBtn.innerHTML = `<i class="ph ph-coins"></i> ${t("gameover_double_coins")} (+${opts.coinsEarned})`;
+      doubleBtn.addEventListener("click", async () => {
+        doubleBtn.disabled = true;
+        await opts.onDoubleCoins();
+        this.doubleCoinsClaimed = true;
+        doubleBtn.remove();
+      });
+      wrap.appendChild(doubleBtn);
     }
 
     const row = document.createElement("div");

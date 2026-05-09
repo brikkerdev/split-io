@@ -122,13 +122,33 @@ function makeGrid() {
 }
 
 function makeTrails() {
+  const stubTrail = { active: false, polylineLength: () => 0, appendPoint: vi.fn() };
   return {
     get: vi.fn().mockReturnValue(undefined),
+    ensure: vi.fn().mockReturnValue(stubTrail),
     appendAndTest: vi.fn(),
     clear: vi.fn(),
-    addCellToTrail: vi.fn(),
+    addPoint: vi.fn(),
     checkTrailCollision: vi.fn().mockReturnValue("none"),
     clearTrail: vi.fn(),
+    setPeerGroup: vi.fn(),
+    removeUnit: vi.fn(),
+  };
+}
+
+function makeTerritory(ownerMap?: Map<number, number>) {
+  const ownerAt = (_x: number, _y: number): number => {
+    if (!ownerMap) return 0;
+    return ownerMap.get(Math.floor(_x / 16) + Math.floor(_y / 16) * 128) ?? 0;
+  };
+  return {
+    ownerAt,
+    isOwnedBy: (x: number, y: number, owner: number): boolean => ownerAt(x, y) === owner,
+    claim: vi.fn(),
+    release: vi.fn(),
+    shrink: vi.fn(),
+    getOwnerPercent: vi.fn().mockReturnValue(0),
+    getNearestOwnerPoint: vi.fn().mockReturnValue({ x: 0, y: 0 }),
   };
 }
 
@@ -144,11 +164,13 @@ describe("BotAI.spawn", () => {
     const grid = makeGrid();
     const trails = makeTrails();
     const hero = makeHero();
+    const territory = makeTerritory();
     ai = new BotAI(
       scene as never,
       grid as never,
       trails as never,
       hero as never,
+      territory as never,
     );
   });
 
@@ -212,7 +234,8 @@ describe("BotAI FSM transitions", () => {
     const grid = makeGrid();
     const trails = makeTrails();
     const hero = makeHero();
-    ai = new BotAI(scene as never, grid as never, trails as never, hero as never);
+    const territory = makeTerritory();
+    ai = new BotAI(scene as never, grid as never, trails as never, hero as never, territory as never);
     ai.spawn({ count: 3, passive: false, profileWeights: { aggressor: 1, tourist: 0, hoarder: 0 } });
   });
 
@@ -231,7 +254,8 @@ describe("BotAI FSM transitions", () => {
     const grid = makeGrid();
     const trails = makeTrails();
     const hero = makeHero();
-    const passiveAi = new BotAI(scene as never, grid as never, trails as never, hero as never);
+    const territory = makeTerritory();
+    const passiveAi = new BotAI(scene as never, grid as never, trails as never, hero as never, territory as never);
     passiveAi.spawn({ count: 3, passive: true, profileWeights: { aggressor: 1, tourist: 0, hoarder: 0 } });
     for (const bot of passiveAi.getAll()) {
       bot.stateElapsed = 0;
@@ -254,7 +278,8 @@ describe("BotAI trail behaviour", () => {
     const grid = makeGrid();
     const trails = makeTrails();
     const hero = makeHero();
-    const ai = new BotAI(scene as never, grid as never, trails as never, hero as never);
+    const territory = makeTerritory();
+    const ai = new BotAI(scene as never, grid as never, trails as never, hero as never, territory as never);
     ai.spawn({ count: 1, passive: false, profileWeights: { aggressor: 0, tourist: 1, hoarder: 0 } });
 
     const bot = ai.getAll()[0] as Bot;
@@ -263,7 +288,7 @@ describe("BotAI trail behaviour", () => {
     bot.state = "leaveHome";
     bot.stateElapsed = 10;
     ai.update(0.016);
-    expect(trails.addCellToTrail).toHaveBeenCalled();
+    expect(trails.addPoint).toHaveBeenCalled();
   });
 
   it("calls checkTrailCollision when bot is outside own territory", () => {
@@ -271,7 +296,8 @@ describe("BotAI trail behaviour", () => {
     const grid = makeGrid();
     const trails = makeTrails();
     const hero = makeHero();
-    const ai = new BotAI(scene as never, grid as never, trails as never, hero as never);
+    const territory = makeTerritory();
+    const ai = new BotAI(scene as never, grid as never, trails as never, hero as never, territory as never);
     ai.spawn({ count: 1, passive: false, profileWeights: { aggressor: 0, tourist: 1, hoarder: 0 } });
 
     const bot = ai.getAll()[0] as Bot;
@@ -287,7 +313,8 @@ describe("BotAI trail behaviour", () => {
     const grid = makeGrid();
     const trails = makeTrails();
     const hero = makeHero();
-    const ai = new BotAI(scene as never, grid as never, trails as never, hero as never);
+    const territory = makeTerritory();
+    const ai = new BotAI(scene as never, grid as never, trails as never, hero as never, territory as never);
     ai.spawn({ count: 1, passive: false, profileWeights: { aggressor: 0, tourist: 1, hoarder: 0 } });
 
     const bot = ai.getAll()[0] as Bot;
@@ -306,13 +333,14 @@ describe("BotAI trail behaviour", () => {
     const grid = makeGrid();
     const trails = makeTrails();
     const hero = makeHero();
-    const ai = new BotAI(scene as never, grid as never, trails as never, hero as never);
+    const territory = makeTerritory();
+    const ai = new BotAI(scene as never, grid as never, trails as never, hero as never, territory as never);
     ai.spawn({ count: 1, passive: false, profileWeights: { aggressor: 0, tourist: 1, hoarder: 0 } });
 
     const bot = ai.getAll()[0] as Bot;
     bot.alive = false;
     bot.state = "leaveHome";
     ai.update(0.016);
-    expect(trails.addCellToTrail).not.toHaveBeenCalled();
+    expect(trails.addPoint).not.toHaveBeenCalled();
   });
 });

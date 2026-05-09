@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { ScoreSystem } from "../src/systems/ScoreSystem";
 import { SCORE } from "../src/config/score";
 import { GameEvents } from "../src/events/GameEvents";
@@ -25,55 +25,92 @@ function makeScene() {
     );
   }
 
-  const emitMock = vi.fn();
+  const emitted: Array<[string, ...unknown[]]> = [];
 
   function emit(event: string, ...args: unknown[]): void {
-    emitMock(event, ...args);
+    emitted.push([event, ...args]);
     listeners.get(event)?.forEach((e) => e.fn.call(e.ctx ?? null, ...args));
   }
 
-  return { events: { on, off, emit, emitMock } };
+  return { events: { on, off, emit }, emitted };
 }
 
 // ---------------------------------------------------------------------------
 
-describe("ScoreSystem", () => {
+describe("ScoreSystem — GDD §2.1 formula", () => {
   let scene: ReturnType<typeof makeScene>;
   let sys: ScoreSystem;
 
   beforeEach(() => {
     scene = makeScene();
     sys = new ScoreSystem(scene as never);
-    // Tests use owner=0/killer=0 as the hero id by convention.
-    // Production wiring uses Hero.id (1+); ScoreSystem treats `setHeroId` as authoritative.
-    (sys as unknown as { setHeroId(id: number): void }).setHeroId(0);
+    sys.setHeroId(0);
   });
 
   it("starts at zero", () => {
     expect(sys.getCurrentScore()).toBe(0);
   });
 
-  it("reset clears state", () => {
+  it("reset clears all state", () => {
     scene.events.emit(GameEvents.TrailCut, { victim: 1, killer: 0 });
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 50 });
     sys.reset();
     expect(sys.getCurrentScore()).toBe(0);
-    expect(sys.getBreakdown(0).kills).toBe(0);
+    const bd = sys.getBreakdown();
+    expect(bd.kills).toBe(0);
+    expect(bd.cycleCount).toBe(0);
+    expect(bd.territoryPoints).toBe(0);
   });
 
-  // ---- territory formula ----
+  // ---- territory accumulation ----
 
-  it("territory update emits live score via ScoreUpdate", () => {
-    const emitted: number[] = [];
-    scene.events.on(GameEvents.ScoreUpdate, (v: unknown) => emitted.push(v as number));
+  it("territory gain accumulates in totalTerritoryCapturedPct", () => {
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 30 });
+    expect(sys.getBreakdown().territoryPoints).toBe(30 * SCORE.territoryPointsPerPct);
+  });
 
-    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 50 });
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0]).toBe(50 * SCORE.territoryWeight);
+  it("territory only adds gain (no double-count on re-emit same pct)", () => {
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 40 });
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 40 });
+    expect(sys.getBreakdown().territoryPoints).toBe(40 * SCORE.territoryPointsPerPct);
+  });
+
+  it("territory does not subtract when pct drops", () => {
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 60 });
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 20 });
+    expect(sys.getBreakdown().territoryPoints).toBe(60 * SCORE.territoryPointsPerPct);
   });
 
   it("ignores territory updates from non-player owners", () => {
     scene.events.emit(GameEvents.TerritoryUpdate, { owner: 1, percent: 99 });
     expect(sys.getCurrentScore()).toBe(0);
+  });
+
+  // ---- cross-cycle territory accumulation ----
+
+  it("accumulates territory across cycles", () => {
+    // Cycle 1: capture 100%.
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 100 });
+    // CycleStart resets lastCyclePct.
+    scene.events.emit(GameEvents.CycleStart, { cycle: 1 });
+    // Cycle 2: capture 50%.
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 50 });
+    const bd = sys.getBreakdown();
+    expect(bd.territoryPoints).toBe(150 * SCORE.territoryPointsPerPct);
+  });
+
+  // ---- cycle points ----
+
+  it("adds cyclePoints per cycle via CycleStart", () => {
+    scene.events.emit(GameEvents.CycleStart, { cycle: 2 });
+    const bd = sys.getBreakdown();
+    expect(bd.cycleCount).toBe(2);
+    expect(bd.cyclePoints).toBe(2 * SCORE.cyclePoints);
+  });
+
+  it("setCycleCount updates cycleCount directly", () => {
+    sys.setCycleCount(3);
+    expect(sys.getBreakdown().cycleCount).toBe(3);
   });
 
   // ---- kill bonus ----
@@ -95,66 +132,61 @@ describe("ScoreSystem", () => {
     expect(sys.getCurrentScore()).toBe(2 * SCORE.killBonus);
   });
 
-  // ---- getBreakdown ----
+  // ---- full formula ----
 
-  it("breakdown reflects territory + speed + kills", () => {
+  it("total = territory + cycles + kills - penalty", () => {
     scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 40 });
+    scene.events.emit(GameEvents.CycleStart, { cycle: 1 });
     scene.events.emit(GameEvents.TrailCut, { victim: 1, killer: 0 });
+    sys.addPenalty(500);
 
-    const bd = sys.getBreakdown(60);
-    expect(bd.territoryPct).toBe(40);
-    expect(bd.territoryPoints).toBe(40 * SCORE.territoryWeight);
-    expect(bd.speedBonus).toBe(60 * SCORE.secondWeight);
-    expect(bd.kills).toBe(1);
-    expect(bd.killPoints).toBe(SCORE.killBonus);
-    expect(bd.penalty).toBe(0);
-    expect(bd.total).toBe(
-      40 * SCORE.territoryWeight + 60 * SCORE.secondWeight + SCORE.killBonus,
-    );
-  });
-
-  // ---- finalize ----
-
-  it("finalize returns RoundBreakdown with rank + bestNew", () => {
-    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 30 });
-    const rd = sys.finalize(120, 30, 2, true);
-    expect(rd.rank).toBe(2);
-    expect(rd.bestNew).toBe(true);
-    expect(rd.total).toBe(30 * SCORE.territoryWeight + 120 * SCORE.secondWeight);
-    expect(rd.secondsBonus).toBe(120 * SCORE.secondWeight);
+    const bd = sys.getBreakdown();
+    const expected =
+      40 * SCORE.territoryPointsPerPct + 1 * SCORE.cyclePoints + SCORE.killBonus - 500;
+    expect(bd.total).toBe(Math.max(0, expected));
   });
 
   // ---- penalty ----
 
   it("addPenalty reduces total", () => {
-    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 10 });
-    sys.addPenalty(200);
-    const bd = sys.getBreakdown(0);
-    expect(bd.penalty).toBe(200);
-    expect(bd.total).toBe(10 * SCORE.territoryWeight - 200);
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 50 });
+    sys.addPenalty(SCORE.deathPenalty);
+    const bd = sys.getBreakdown();
+    expect(bd.penalty).toBe(SCORE.deathPenalty);
+    expect(bd.total).toBe(Math.max(0, 50 * SCORE.territoryPointsPerPct - SCORE.deathPenalty));
   });
 
   it("total never goes below zero", () => {
     sys.addPenalty(999999);
-    expect(sys.getBreakdown(0).total).toBe(0);
+    expect(sys.getBreakdown().total).toBe(0);
+  });
+
+  // ---- finalize ----
+
+  it("finalize returns RoundBreakdown with secondsBonus=0", () => {
+    scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 30 });
+    const rd = sys.finalize(120, 30, 2, true);
+    expect(rd.rank).toBe(2);
+    expect(rd.bestNew).toBe(true);
+    expect(rd.secondsBonus).toBe(0);
+    expect(rd.territoryPoints).toBe(30 * SCORE.territoryPointsPerPct);
   });
 
   // ---- round:end event ----
 
-  it("round:end triggers ScoreUpdate with final score", () => {
+  it("round:end emits ScoreUpdate with current total", () => {
     scene.events.emit(GameEvents.TerritoryUpdate, { owner: 0, percent: 20 });
     scene.events.emit(GameEvents.TrailCut, { victim: 1, killer: 0 });
 
-    const emitted: number[] = [];
-    scene.events.on(GameEvents.ScoreUpdate, (v: unknown) => emitted.push(v as number));
+    const scoreUpdates = scene.emitted.filter(([ev]) => ev === GameEvents.ScoreUpdate);
+    const before = scoreUpdates.length;
 
     scene.events.emit(GameEvents.RoundEnd, { remainingMs: 30_000 });
 
-    const expected =
-      20 * SCORE.territoryWeight +
-      30 * SCORE.secondWeight +
-      SCORE.killBonus;
-    expect(emitted[emitted.length - 1]).toBe(expected);
+    const after = scene.emitted.filter(([ev]) => ev === GameEvents.ScoreUpdate);
+    expect(after.length).toBeGreaterThan(before);
+
+    const expected = 20 * SCORE.territoryPointsPerPct + SCORE.killBonus;
     expect(sys.getCurrentScore()).toBe(expected);
   });
 });
