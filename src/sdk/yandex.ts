@@ -54,11 +54,14 @@ class YandexSDK {
   }
 
   getLang(): Lang {
-    // Priority mirrors the splash detector in index.html so the loading screen
-    // and the in-game UI never disagree. We don't fall back to navigator.language
-    // because on Yandex Games the lang is canonical from URL ?lang= or the SDK.
+    // Priority: SDK i18n (canonical on Yandex Games) → URL ?lang= → default.
+    // We must read ysdk.environment.i18n.lang first so Yandex's automated
+    // i18n quality check sees the property access at runtime; otherwise the
+    // ?lang= URL param (which Yandex always sets) short-circuits the read
+    // and the validator reports the game as not using i18n.
+    const fromSdk = this.ysdk?.environment.i18n.lang;
     const fromUrl = new URLSearchParams(window.location.search).get("lang");
-    const raw = fromUrl ?? this.ysdk?.environment.i18n.lang ?? DEFAULT_LANG;
+    const raw = fromSdk ?? fromUrl ?? DEFAULT_LANG;
     return (SUPPORTED_LANGS as readonly string[]).includes(raw) ? (raw as Lang) : DEFAULT_LANG;
   }
 

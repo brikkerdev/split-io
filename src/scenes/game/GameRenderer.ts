@@ -915,26 +915,6 @@ export class GameRenderer {
     const gfx = this.trailGfx;
     gfx.clear();
 
-    // Camera AABB used to skip trails whose entire bbox is off-screen — saves
-    // hundreds of strokePath/fillCircle batch ops per frame on full-size maps.
-    const cam = this.scene.cameras.main;
-    const cullMargin = 64;
-    const camMinX = cam.scrollX - cullMargin;
-    const camMaxX = cam.scrollX + cam.width / cam.zoom + cullMargin;
-    const camMinY = cam.scrollY - cullMargin;
-    const camMaxY = cam.scrollY + cam.height / cam.zoom + cullMargin;
-    const trailBboxOnScreen = (pts: Vec2[]): boolean => {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i] as Vec2;
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-      }
-      return maxX >= camMinX && minX <= camMaxX && maxY >= camMinY && minY <= camMaxY;
-    };
-
     if (hero.alive && heroActive) {
       this.drawSmoothTrail(
         gfx,
@@ -1000,7 +980,6 @@ export class GameRenderer {
       const trail = trails.get(bot.id);
       if (!trail?.active) continue;
       if (bot.posHistory.length < 2) continue;
-      if (!trailBboxOnScreen(bot.posHistory)) continue;
       this.drawSmoothTrail(
         gfx,
         bot.posHistory,
@@ -1017,7 +996,7 @@ export class GameRenderer {
       if (!ghost.alive) continue;
       liveBotGhostIds.add(ghost.id);
       const ghostTrail = trails.get(ghost.id);
-      if (ghost.posHistory.length >= 2 && ghostTrail?.active && trailBboxOnScreen(ghost.posHistory)) {
+      if (ghost.posHistory.length >= 2 && ghostTrail?.active) {
         this.drawDashedTrail(
           gfx,
           ghost.posHistory,
@@ -1087,18 +1066,15 @@ export class GameRenderer {
     }
     gfx.strokePath();
 
-    // Joint smoothing: fillCircle at every Nth vertex is enough to hide miter
-    // spikes — full per-point joints turned into hundreds of batchTri calls
-    // per frame for long bot trails. Endpoints (head/tail) always get caps.
+    // Round joints and caps: Phaser Graphics uses miter-style joins which
+    // produce visible spikes/kinks at sharp turns. Fill a circle at each
+    // vertex (radius = lineWidth/2) to smooth the seams.
     const r = lineWidth * 0.5;
     gfx.fillStyle(color, alpha);
-    const step = 3;
-    for (let i = 0; i < pts.length; i += step) {
+    for (let i = 0; i < pts.length; i++) {
       const pt = pts[i] as Vec2;
       gfx.fillCircle(pt.x, pt.y, r);
     }
-    const last = pts[pts.length - 1] as Vec2;
-    gfx.fillCircle(last.x, last.y, r);
   }
 
   private drawDashedTrail(
@@ -1112,12 +1088,6 @@ export class GameRenderer {
   ): void {
     if (pts.length < 2 || dashPx <= 0 || gapPx <= 0) return;
     gfx.lineStyle(lineWidth, color, alpha);
-
-    // Build all dashes as moveTo/lineTo subpaths inside one path, then issue a
-    // single strokePath. Phaser strokes every subpath created via moveTo, so
-    // gaps stay invisible — but we collapse N strokePath() calls into one,
-    // dropping per-dash batch overhead from ~hundreds to one per ghost trail.
-    gfx.beginPath();
 
     let drawing = true;
     let need = dashPx;
@@ -1136,8 +1106,10 @@ export class GameRenderer {
         const nx = curX + ux * take;
         const ny = curY + uy * take;
         if (drawing) {
+          gfx.beginPath();
           gfx.moveTo(curX, curY);
           gfx.lineTo(nx, ny);
+          gfx.strokePath();
         }
         curX = nx;
         curY = ny;
@@ -1149,7 +1121,6 @@ export class GameRenderer {
         }
       }
     }
-    gfx.strokePath();
   }
 
   private renderUnits(): void {
