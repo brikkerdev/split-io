@@ -13,6 +13,7 @@ export const ru: Record<string, string> = {
   hud_territory: "Территория",
   hud_leaderboard: "Лидеры",
   hud_lb_you: "Ты",
+  hud_lb_your_position: "Твоя позиция",
   hud_split_ready: "Запуск!",
   hud_hint_move: "Двигайся!",
   hud_coins: "Монеты",
@@ -118,6 +119,8 @@ export const ru: Record<string, string> = {
   daily_amount: "+{amount} монет",
   daily_next: "Следующая через {time}",
   daily_day_n: "День {n}",
+  daily_day_short: "Д{n}",
+  hud_pause: "Пауза",
   daily_streak_label: "Огонёк: {n} дней подряд",
   daily_streak_idle: "Заходи каждый день — раздуй огонёк!",
   daily_streak_best: "Рекорд: {n} дней",
@@ -139,6 +142,10 @@ export const ru: Record<string, string> = {
   leaderboard_consent_accept: "Войти и отправить",
   leaderboard_consent_decline: "Не сейчас",
   leaderboard_consent_pending: "Ваш результат: {score}",
+  leaderboard_auth_title: "Вход",
+  leaderboard_auth_text: "Войдите, чтобы попасть в таблицу.",
+  leaderboard_auth_accept: "Войти",
+  leaderboard_auth_decline: "Посмотреть рейтинг",
 
   // Tutorial
   tutorial_move: "Веди героя — за тобой тянется хвост",

@@ -133,7 +133,10 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    const botsActive = phase !== "playing" || !isPaused;
+    // Freeze bots while the hero spawn-intro is playing — the world should
+    // hold still during the countdown so it reads as "appearing", not "lagging".
+    const inHeroIntro = phase === "playing" && this.heroCtrl.inSpawnGrace();
+    const botsActive = phase !== "upgradePick" && (phase !== "playing" || !isPaused) && !inHeroIntro;
     if (botsActive) this.botAI.update(dt);
 
     if (phase === "demo") {
@@ -246,6 +249,7 @@ export class GameScene extends Phaser.Scene {
       heroTrail: () => this.heroTrail,
       heroPattern: () => this.heroPattern,
       heroFillSecondary: () => this.heroFillSecondary,
+      heroRenderScale: () => this.heroCtrl?.getRenderScale() ?? 1,
     });
 
     this.minimap = new MinimapRenderer(this, {
@@ -318,7 +322,7 @@ export class GameScene extends Phaser.Scene {
     const victimColor = this.resolveEnemyTerritoryColor();
     this.juiceSys.updateRaid(dt, victimColor !== null, victimColor);
 
-    // Task 3 + 4: ambient particles and tension layer when outside own territory.
+    // Task 3: ambient particles when outside own territory.
     const heroOwner = this.territorySys.ownerAt(this.hero.pos.x, this.hero.pos.y);
     const outsideOwn = this.hero.alive && heroOwner !== this.hero.id;
     this.juiceSys.setHeroOutsideOwnTerritory(outsideOwn, this.heroFill);

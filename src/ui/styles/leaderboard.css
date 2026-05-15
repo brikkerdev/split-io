@@ -51,10 +51,11 @@
   background: var(--mint);
 }
 
-/* Top 3 rank accents */
-.lb-list li:nth-child(1) .lb-row { background: var(--yellow); }
-.lb-list li:nth-child(2) .lb-row { background: var(--bg); }
-.lb-list li:nth-child(3) .lb-row { background: var(--peach); }
+/* Top 3 rank accents — only apply to the primary top list, not the
+ * "your position" around list which renders mid-table neighbors. */
+.lb-list:not(.lb-list--own) li:nth-child(1) .lb-row { background: var(--yellow); }
+.lb-list:not(.lb-list--own) li:nth-child(2) .lb-row { background: var(--bg); }
+.lb-list:not(.lb-list--own) li:nth-child(3) .lb-row { background: var(--peach); }
 
 /* ── Cells ────────────────────────────────────────────────── */
 .lb-rank {
@@ -101,9 +102,23 @@
   padding: 2px 0;
   font-weight: 700;
 }
+.lb-separator-label {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: clamp(10px, 1.2vw, 12px);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 12px 0 6px;
+  border-top: 1.5px dashed rgba(0,0,0,0.18);
+  margin-top: 8px;
+}
 
 .lb-list--own {
-  margin-top: 0;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 /* ── Loading spinner ──────────────────────────────────────── */
@@ -160,7 +175,8 @@
   flex-direction: column;
   gap: 14px;
   padding: 18px 16px;
-  text-align: left;
+  text-align: center;
+  align-items: center;
 }
 .lb-consent__title {
   font-weight: 700;

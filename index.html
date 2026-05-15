@@ -55,8 +55,24 @@
         position: relative;
         width: 100vw;
         height: 100vh;
+        /* dvh tracks dynamic viewport — collapses with mobile address bar
+           and respects Yandex iframe chrome on phones. Falls back to vh on
+           old browsers via the preceding declaration. */
+        width: 100dvw;
+        height: 100dvh;
       }
-      canvas { display: block; }
+      canvas {
+        display: block;
+        /* Without this Yandex iOS WebView routes the first finger touch to
+           the iframe's gesture arbiter (zoom/scroll guess) before delivering
+           it to Phaser, which manifests as a ~half-second input dead zone
+           after the menu is dismissed. Setting touch-action on the canvas
+           itself (not just body) forces immediate delivery. */
+        touch-action: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
 
       /* ── DOM UI overlay ─────────────────────────────────── */
       #ui-overlay {
@@ -150,7 +166,7 @@
 
         var DICT = {
           ru: { left: 'ЗАКРАСЬ', right: 'ИО', loading: 'Загрузка', title: 'Закрась.ио' },
-          en: { left: 'PAINT', right: 'IO', loading: 'Loading', title: 'Paint.io' },
+          en: { left: 'INKLY', right: 'IO', loading: 'Loading', title: 'Inkly.io' },
           tr: { left: 'BOYA', right: 'IO', loading: 'Yükleniyor', title: 'Boya.io' },
         };
 

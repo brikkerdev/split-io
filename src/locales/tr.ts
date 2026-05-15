@@ -13,6 +13,7 @@ export const tr: Record<string, string> = {
   hud_territory: "Bölge",
   hud_leaderboard: "Liderler",
   hud_lb_you: "Sen",
+  hud_lb_your_position: "Senin sıran",
   hud_split_ready: "Fırlat!",
   hud_hint_move: "Hareket et!",
   hud_coins: "Madeni Para",
@@ -118,6 +119,8 @@ export const tr: Record<string, string> = {
   daily_amount: "+{amount} Jeton",
   daily_next: "Sonraki {time} sonra",
   daily_day_n: "{n}. Gün",
+  daily_day_short: "G{n}",
+  hud_pause: "Duraklat",
   daily_streak_label: "Seri: üst üste {n} gün",
   daily_streak_idle: "Her gün uğra — alevi söndürme!",
   daily_streak_best: "Rekor: {n} gün",
@@ -139,6 +142,10 @@ export const tr: Record<string, string> = {
   leaderboard_consent_accept: "Giriş yap ve gönder",
   leaderboard_consent_decline: "Şimdi değil",
   leaderboard_consent_pending: "Skorunuz: {score}",
+  leaderboard_auth_title: "Giriş yap",
+  leaderboard_auth_text: "Sıralamaya girmek için giriş yapın.",
+  leaderboard_auth_accept: "Giriş yap",
+  leaderboard_auth_decline: "Sıralamayı gör",
 
   // Pause
   tutorial_move: "Kahramanı yönlendir — kuyruk peşinden gelir",

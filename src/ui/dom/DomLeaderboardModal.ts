@@ -1,4 +1,5 @@
 import { LeaderboardSystem, type LeaderboardEntry } from "@systems/LeaderboardSystem";
+import { yandex } from "@sdk/yandex";
 import { t } from "./i18n";
 
 export class DomLeaderboardModal {
@@ -15,15 +16,76 @@ export class DomLeaderboardModal {
   mount(container: HTMLElement): void {
     container.appendChild(this.root);
     requestAnimationFrame(() => this.root.classList.add("visible"));
-    if (this.shouldAskConsent()) {
+    if (this.needsAuth()) {
+      this.renderAuthPrompt();
+    } else if (this.shouldAskConsent()) {
       this.renderConsent();
     } else {
       this.fetchAndRender();
     }
   }
 
+  private needsAuth(): boolean {
+    return !yandex.isMock && !yandex.isAuthorized();
+  }
+
   private shouldAskConsent(): boolean {
     return this.lb.getPendingScore() > 0 && !this.lb.canSubmit();
+  }
+
+  private shouldShowPlayerRow(): boolean {
+    return yandex.isMock || yandex.isAuthorized();
+  }
+
+  private renderAuthPrompt(): void {
+    const body = this.body();
+    body.innerHTML = "";
+
+    const wrap = document.createElement("div");
+    wrap.className = "lb-consent";
+
+    const title = document.createElement("div");
+    title.className = "lb-consent__title";
+    title.textContent = t("leaderboard_auth_title");
+
+    const text = document.createElement("p");
+    text.className = "lb-consent__text";
+    text.textContent = t("leaderboard_auth_text");
+
+    const row = document.createElement("div");
+    row.className = "lb-consent__buttons";
+
+    const accept = document.createElement("button");
+    accept.className = "btn btn-primary";
+    accept.textContent = t("leaderboard_auth_accept");
+    accept.addEventListener("click", () => void this.handleAuthAccept(accept));
+
+    const decline = document.createElement("button");
+    decline.className = "btn";
+    decline.textContent = t("leaderboard_auth_decline");
+    decline.addEventListener("click", () => this.fetchAndRender());
+
+    row.appendChild(accept);
+    row.appendChild(decline);
+
+    wrap.appendChild(title);
+    wrap.appendChild(text);
+    wrap.appendChild(row);
+    body.appendChild(wrap);
+  }
+
+  private async handleAuthAccept(btn: HTMLButtonElement): Promise<void> {
+    btn.disabled = true;
+    const ok = await yandex.requestAuth();
+    if (!ok) {
+      btn.disabled = false;
+      return;
+    }
+    if (this.shouldAskConsent()) {
+      this.renderConsent();
+    } else {
+      this.fetchAndRender();
+    }
   }
 
   private renderConsent(): void {
@@ -146,11 +208,15 @@ export class DomLeaderboardModal {
     body.appendChild(retry);
   }
 
-  private renderEntries(entries: LeaderboardEntry[], playerRank: number): void {
+  private renderEntries(
+    top: LeaderboardEntry[],
+    around: LeaderboardEntry[],
+    playerRank: number,
+  ): void {
     const body = this.body();
     body.innerHTML = "";
 
-    if (entries.length === 0) {
+    if (top.length === 0 && around.length === 0) {
       const empty = document.createElement("p");
       empty.className = "lb-empty";
       empty.textContent = t("leaderboard_empty");
@@ -158,30 +224,37 @@ export class DomLeaderboardModal {
       return;
     }
 
+    const showPlayer = this.shouldShowPlayerRow();
+    const effectivePlayerRank = showPlayer ? playerRank : -1;
+
     const list = document.createElement("ol");
     list.className = "lb-list";
-
-    const playerInTop = entries.some((e) => e.rank === playerRank);
-
-    entries.forEach((entry) => {
-      list.appendChild(this.buildRow(entry, entry.rank === playerRank));
+    top.forEach((entry) => {
+      list.appendChild(this.buildRow(entry, entry.rank === effectivePlayerRank));
     });
-
     body.appendChild(list);
 
-    if (playerRank > 0 && !playerInTop) {
-      const sep = document.createElement("div");
-      sep.className = "lb-separator";
-      sep.textContent = "•••";
+    const playerInTop = top.some((e) => e.rank === effectivePlayerRank);
+    if (showPlayer && playerRank > 0 && !playerInTop) {
+      const sepLabel = document.createElement("div");
+      sepLabel.className = "lb-separator-label";
+      sepLabel.textContent = t("hud_lb_your_position");
+      body.appendChild(sepLabel);
 
-      const ownRow = document.createElement("ol");
-      ownRow.className = "lb-list lb-list--own";
-      ownRow.appendChild(
-        this.buildRow({ rank: playerRank, name: t("leaderboard_you"), score: 0 }, true),
-      );
+      const ownList = document.createElement("ol");
+      ownList.className = "lb-list lb-list--own";
 
-      body.appendChild(sep);
-      body.appendChild(ownRow);
+      if (around.length > 0) {
+        around.forEach((entry) => {
+          ownList.appendChild(this.buildRow(entry, entry.rank === effectivePlayerRank));
+        });
+      } else {
+        // Fallback: no neighbors available — show just the player row.
+        ownList.appendChild(
+          this.buildRow({ rank: playerRank, name: t("leaderboard_you"), score: 0 }, true),
+        );
+      }
+      body.appendChild(ownList);
     }
   }
 
@@ -212,11 +285,8 @@ export class DomLeaderboardModal {
   private async fetchAndRender(): Promise<void> {
     this.renderLoading();
     try {
-      const [entries, playerRank] = await Promise.all([
-        this.lb.getTop(10),
-        this.lb.getPlayerRank(),
-      ]);
-      this.renderEntries(entries, playerRank);
+      const data = await this.lb.getLeaderboardData(10, 1);
+      this.renderEntries(data.top, data.around, data.playerRank);
     } catch {
       this.renderError();
     }

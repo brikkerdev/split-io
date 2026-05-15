@@ -69,7 +69,14 @@ export class SaveManager {
   resetTo<T extends SaveData>(defaults: T): T {
     this.cache = { ...defaults };
     this.pendingPatch = { ...defaults };
-    this.scheduleFlush();
+    // Caller typically follows with window.location.reload(), which fires
+    // before the 1500ms debounce → defaults never persist. Flush now so the
+    // post-reload boot reads the reset state from storage.
+    if (this.flushTimer !== null) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    void this.flush();
     return this.cache as T;
   }
 

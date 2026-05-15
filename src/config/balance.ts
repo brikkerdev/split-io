@@ -1,5 +1,13 @@
 // Round + actor movement tuning. Source: GDD §2, §2.1, §3.
 
+// Mobile bot counts are roughly halved. Each extra alive bot adds an AI tick
+// (pathfinding + collision queries) and a polygon to the territory render
+// pipeline (earcut + 2 fillPath passes). Halving the population is the single
+// biggest gain on integrated mobile GPUs that struggle with overdraw.
+const IS_MOBILE = typeof window !== "undefined"
+  && typeof window.matchMedia === "function"
+  && window.matchMedia("(pointer: coarse)").matches;
+
 export const BALANCE = {
   roundSeconds: 180,
   longRoundSeconds: 300,
@@ -18,9 +26,9 @@ export const BALANCE = {
   upgradeChoiceCount: 2,
   upgradeAutoCloseSec: 4,
 
-  botCountMin: 15,
-  botCountMax: 25,
-  botCountFirstRound: 8,
+  botCountMin: IS_MOBILE ? 8 : 15,
+  botCountMax: IS_MOBILE ? 12 : 25,
+  botCountFirstRound: IS_MOBILE ? 5 : 8,
   botFirstRoundPassiveSec: 30,
 
   killBonus: 500,
@@ -43,7 +51,13 @@ export const BALANCE = {
   botTurnRateRadPerSec: 3.5,
 
   /** Number of bots in demo/background mode (menu backdrop). */
-  botCountDemoMode: 12,
+  botCountDemoMode: IS_MOBILE ? 6 : 12,
+
+  /** Spawn intro: hero is visible but immobile so player can read the field. */
+  spawnGraceMs: 850,
+
+  /** Minimum alive bot count regardless of how filled the map gets. */
+  botCountClaimedFloor: 2,
 } as const;
 
 export type Balance = typeof BALANCE;

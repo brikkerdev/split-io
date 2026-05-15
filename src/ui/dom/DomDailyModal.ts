@@ -199,7 +199,7 @@ export class DomDailyModal {
 
       const dayLabel = document.createElement("div");
       dayLabel.className = "daily-strip__day";
-      dayLabel.textContent = `D${entry.dayNumber}`;
+      dayLabel.textContent = t("daily_day_short", { n: String(entry.dayNumber) });
 
       const icon = document.createElement("div");
       icon.className = "daily-strip__icon";

@@ -92,6 +92,16 @@ export class InputSystem {
   private readonly boundPointerUp = (ptr: Phaser.Input.Pointer): void => this.onPointerUp(ptr);
   private readonly boundPointerCancel = (ptr: Phaser.Input.Pointer): void => this.onPointerCancel(ptr);
 
+  // Native touch fallback state — used on iOS Safari when Phaser pointer
+  // events aren't reliably delivered (Yandex iframe gesture arbiter, etc.).
+  private nativeTouchDown = false;
+  private nativeTouchX = 0;
+  private nativeTouchY = 0;
+  private nativeTouchStartMs = 0;
+  private boundNativeStart?: (e: TouchEvent) => void;
+  private boundNativeMove?: (e: TouchEvent) => void;
+  private boundNativeEnd?: (e: TouchEvent) => void;
+
   constructor(
     private readonly scene: Phaser.Scene,
     scheme: ControlScheme = "swipe",
@@ -134,9 +144,92 @@ export class InputSystem {
         this.emitSplit();
       });
     }
+
+    this.installNativeTouchFallback();
+  }
+
+  /**
+   * Attach native touch listeners directly to the canvas. Coordinates are
+   * stored in canvas-local CSS pixels — same coordinate space Phaser uses
+   * for pointer.x/y under the RESIZE scale mode. Both code paths run; the
+   * stick-engagement code prefers Phaser's pointer when present and falls
+   * back to native state when it isn't.
+   */
+  private installNativeTouchFallback(): void {
+    const canvas = this.scene.game.canvas;
+    if (!canvas) return;
+
+    const toLocal = (t: Touch): { x: number; y: number } => {
+      const rect = canvas.getBoundingClientRect();
+      const sx = rect.width > 0 ? canvas.width / rect.width : 1;
+      const sy = rect.height > 0 ? canvas.height / rect.height : 1;
+      return {
+        x: (t.clientX - rect.left) * sx,
+        y: (t.clientY - rect.top) * sy,
+      };
+    };
+
+    this.boundNativeStart = (e: TouchEvent): void => {
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const p = toLocal(t);
+      this.nativeTouchDown = true;
+      this.nativeTouchX = p.x;
+      this.nativeTouchY = p.y;
+      this.nativeTouchStartMs = performance.now();
+    };
+    this.boundNativeMove = (e: TouchEvent): void => {
+      if (!this.nativeTouchDown) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const p = toLocal(t);
+      this.nativeTouchX = p.x;
+      this.nativeTouchY = p.y;
+    };
+    this.boundNativeEnd = (_e: TouchEvent): void => {
+      if (!this.nativeTouchDown) return;
+      this.nativeTouchDown = false;
+      // Mirror the Phaser pointerup path for tap-to-split + visual cleanup,
+      // but only when Phaser hasn't already handled the release. Reading
+      // activePointer.isDown lets us avoid double-firing on healthy devices.
+      const phaserAlive = this.scene.input.activePointer.isDown;
+      if (!phaserAlive && this.stickActive) {
+        // Reuse the elapsed/drag tracked by handleTouchEnd via touchStartMs.
+        if (this.touchStartMs === 0) this.touchStartMs = this.nativeTouchStartMs;
+        this.handleTouchEnd(this.nativeTouchX, this.nativeTouchY);
+      }
+    };
+
+    // passive:true — we never preventDefault; canvas already has
+    // touch-action:none so iOS won't try to scroll/zoom on it.
+    canvas.addEventListener("touchstart", this.boundNativeStart, { passive: true });
+    canvas.addEventListener("touchmove", this.boundNativeMove, { passive: true });
+    canvas.addEventListener("touchend", this.boundNativeEnd, { passive: true });
+    canvas.addEventListener("touchcancel", this.boundNativeEnd, { passive: true });
+  }
+
+  /**
+   * Detects a "stuck" stick — flag is true but the pointer that started it is
+   * no longer physically down. Happens on Yandex iOS WebView when a touch
+   * sequence is interrupted by `window.location.reload()` (settings reset),
+   * tab visibility change, or the iframe consuming the touchend for its own
+   * gesture handling. Without this, every subsequent pointerdown is ignored
+   * because of the `if (this.stickActive) return` guards.
+   */
+  private clearStaleStick(): void {
+    if (!this.stickActive) return;
+    const existing = this.stickPointer;
+    const phaserAlive = existing !== null && existing.isDown;
+    // Native touch is a separate evidence source — treat the stick as live
+    // while a finger is physically down even if Phaser hasn't refreshed yet.
+    if (phaserAlive || this.nativeTouchDown) return;
+    this.stickActive = false;
+    this.stickPointer = null;
   }
 
   private onPointerDown(ptr: Phaser.Input.Pointer): void {
+    this.clearStaleStick();
+
     if (this.usesStick()) {
       // Already driving the stick with another pointer (e.g. left mouse held
       // and user right-clicks, or a second finger lands). Ignore — keep the
@@ -159,8 +252,9 @@ export class InputSystem {
       } satisfies JoystickShowPayload);
       return;
     }
-    // Swipe scheme on mobile: track held finger so update() can aim relative
-    // to hero (paper.io style), and detect tap-to-split on release.
+    // Swipe scheme on mobile (paper.io 2 style): touch anchor sets origin;
+    // heading derives from finger offset relative to it. The anchor trails
+    // the finger past `swipeAnchorRadiusPx` so long drags stay in reach.
     if (this.isMobile) {
       if (this.stickActive) return;
       this.stickActive = true;
@@ -249,14 +343,39 @@ export class InputSystem {
   }
 
   private updateStickHeading(): void {
-    if (!this.stickActive) return;
+    this.clearStaleStick();
+
+    // Auto-engage on a finger that landed outside the canvas (DOM button) and
+    // dragged in. See updateMobileSwipeHeading for the same fix.
+    if (!this.stickActive) {
+      const active = this.scene.input.activePointer;
+      const isMobileTouch = this.isMobile && (active.isDown || this.nativeTouchDown);
+      const isDesktopMouse = !this.isMobile && active.leftButtonDown();
+      if (isMobileTouch || isDesktopMouse) {
+        const phaserDown = active.isDown;
+        const ox = phaserDown ? active.x : this.nativeTouchX;
+        const oy = phaserDown ? active.y : this.nativeTouchY;
+        this.stickActive = true;
+        this.stickPointer = phaserDown ? active : null;
+        this.stickOriginX = ox;
+        this.stickOriginY = oy;
+        this.touchStartMs = performance.now();
+        this.touchMaxDrag = 0;
+        this.scene.events.emit(JoystickEvents.Show, {
+          originX: ox,
+          originY: oy,
+        } satisfies JoystickShowPayload);
+      } else {
+        return;
+      }
+    }
 
     // Read from the originating pointer so unrelated cursors/fingers can't
-    // hijack the stick mid-drag. Fall back to activePointer if the reference
-    // is missing (shouldn't happen in normal flow).
-    const ptr = this.stickPointer ?? this.scene.input.activePointer;
-    const dx = ptr.x - this.stickOriginX;
-    const dy = ptr.y - this.stickOriginY;
+    // hijack the stick mid-drag. Fall back to native touch coords on iOS when
+    // Phaser pointer events stop updating.
+    const curPos = this.resolveCurrentTouch();
+    const dx = curPos.x - this.stickOriginX;
+    const dy = curPos.y - this.stickOriginY;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     // Track max drag for tap detection
@@ -299,20 +418,55 @@ export class InputSystem {
   }
 
   /**
-   * Mobile swipe scheme (paper.io 2 style): the heading is the angle from the
-   * initial touch point to the current finger position. Circular finger motion
-   * rotates the hero. The hero is NOT aimed at the finger's world position.
+   * Mobile swipe (paper.io 2 style): heading = angle from the touch anchor to
+   * the current finger position. The anchor is a virtual joystick centre that
+   * trails the finger when the offset exceeds `swipeAnchorRadiusPx`, so the
+   * finger never runs out of room during long drags. Tiny finger jitter no
+   * longer flips the heading 180° because the angle is dominated by the
+   * accumulated absolute offset, not per-frame deltas.
    */
-  private updateMobileSwipeHeading(_heroWorldX: number, _heroWorldY: number): void {
-    if (!this.stickActive) return;
-    const ptr = this.stickPointer ?? this.scene.input.activePointer;
+  private updateMobileSwipeHeading(_dt: number): void {
+    this.clearStaleStick();
 
-    const dx = ptr.x - this.stickOriginX;
-    const dy = ptr.y - this.stickOriginY;
+    // Auto-engage when a finger is already down on the canvas but no stick is
+    // active. This catches the common Yandex-mobile case where the player's
+    // touch began on the DOM "Play" button (outside Phaser's hit region) and
+    // dragged into the canvas without lifting — iOS does NOT emit a fresh
+    // touchstart on the canvas, so our pointerdown handler never fires and
+    // the entire first swipe was being lost.
+    if (!this.stickActive) {
+      const active = this.scene.input.activePointer;
+      const phaserDown = active.isDown;
+      if (phaserDown || this.nativeTouchDown) {
+        this.stickActive = true;
+        this.stickPointer = phaserDown ? active : null;
+        this.stickOriginX = phaserDown ? active.x : this.nativeTouchX;
+        this.stickOriginY = phaserDown ? active.y : this.nativeTouchY;
+        this.touchStartMs = performance.now();
+        this.touchMaxDrag = 0;
+      } else {
+        return;
+      }
+    }
+    const curPos = this.resolveCurrentTouch();
+
+    const dx = curPos.x - this.stickOriginX;
+    const dy = curPos.y - this.stickOriginY;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > this.touchMaxDrag) this.touchMaxDrag = dist;
 
     if (dist < INPUT.swipeDeadzonePixels) return;
+
+    // Trailing anchor: once the finger pulls past the joystick radius, drag
+    // the origin along so the finger stays at exactly `radius` away. This is
+    // what lets paper.io 2 players hold a direction with a tiny finger swing
+    // and re-aim by sliding without lifting.
+    const radius = INPUT.swipeAnchorRadiusPx;
+    if (dist > radius) {
+      const k = (dist - radius) / dist;
+      this.stickOriginX += dx * k;
+      this.stickOriginY += dy * k;
+    }
 
     const raw = Math.atan2(dy, dx);
     const snapped = INPUT.snapToSteps ? snapToSteps(raw, INPUT.directionSteps) : raw;
@@ -326,6 +480,26 @@ export class InputSystem {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Resolved current finger/cursor position, preferring Phaser when live. */
+  private readonly _curPos = { x: 0, y: 0 };
+  private resolveCurrentTouch(): { x: number; y: number } {
+    const pinned = this.stickPointer;
+    if (pinned !== null && pinned.isDown) {
+      this._curPos.x = pinned.x;
+      this._curPos.y = pinned.y;
+      return this._curPos;
+    }
+    if (this.nativeTouchDown) {
+      this._curPos.x = this.nativeTouchX;
+      this._curPos.y = this.nativeTouchY;
+      return this._curPos;
+    }
+    const active = this.scene.input.activePointer;
+    this._curPos.x = active.x;
+    this._curPos.y = active.y;
+    return this._curPos;
+  }
 
   /**
    * Lerps between two angles taking the shortest arc.
@@ -345,7 +519,7 @@ export class InputSystem {
     if (this.usesStick()) {
       this.updateStickHeading();
     } else if (this.isMobile) {
-      this.updateMobileSwipeHeading(heroWorldX, heroWorldY);
+      this.updateMobileSwipeHeading(dt);
     } else {
       this.updateDesktopHeading(heroWorldX, heroWorldY);
     }
@@ -358,8 +532,12 @@ export class InputSystem {
         const max = INPUT.maxRotationInertiaRadPerSec;
         this.releaseAngularVel = Math.max(-max, Math.min(max, inst));
       } else if (!this.stickActive) {
-        // Released: apply tiny inertia tail, then snap target to current to
-        // halt rotation. Decay is frame-rate-independent.
+        // Released: optional inertia tail, then leave targetHeading where it
+        // was. Paper.io 2 keeps the hero travelling in the last commanded
+        // direction until a new tap. We deliberately do NOT reset target to
+        // current — that would erase a swipe issued during spawn-grace (when
+        // the hero is frozen) and leave the hero drifting in the default
+        // heading once movement resumes.
         if (Math.abs(this.releaseAngularVel) > INPUT.rotationInertiaEpsilon) {
           this.targetHeading = normaliseAngle(
             this.targetHeading + this.releaseAngularVel * dtSec,
@@ -367,7 +545,6 @@ export class InputSystem {
           this.releaseAngularVel *= Math.pow(INPUT.rotationInertiaDecay, dtSec * 60);
         } else {
           this.releaseAngularVel = 0;
-          this.targetHeading = this.currentHeading;
         }
       }
     }
@@ -378,7 +555,12 @@ export class InputSystem {
   private smoothHeading(dt: number): void {
     const dtSec = dt / 1000;
     const delta = shortestDelta(this.currentHeading, this.targetHeading);
-    const maxStep = INPUT.turnRateRadPerSec * dtSec;
+    // Mobile (touch / floating stick) gets a softer turn-rate cap so the hero
+    // arcs into a new heading like in paper.io 2 instead of snapping. Desktop
+    // mouse aim stays effectively instant.
+    const useMobileRate = this.isMobile || this.usesStick();
+    const rate = useMobileRate ? INPUT.turnRateRadPerSecMobile : INPUT.turnRateRadPerSec;
+    const maxStep = rate * dtSec;
     const step = Math.max(-maxStep, Math.min(maxStep, delta));
     this.currentHeading = normaliseAngle(this.currentHeading + step);
   }
@@ -398,11 +580,35 @@ export class InputSystem {
     return this.hasInput;
   }
 
+  /** True if this device is using touch input (mobile). */
+  isTouchDevice(): boolean {
+    return this.isMobile;
+  }
+
+  /**
+   * Clears the "first input received" flag. Called by HeroController on each
+   * spawn so the intro-skip-on-input logic doesn't fire instantly on every
+   * respawn just because the player swiped at some point earlier in the run.
+   */
+  resetInputFlag(): void {
+    this.hasInput = false;
+  }
+
   destroy(): void {
     this.scene.input.off(EV_POINTER_DOWN, this.boundPointerDown);
     this.scene.input.off(EV_POINTER_UP, this.boundPointerUp);
     this.scene.input.off("pointercancel", this.boundPointerCancel);
     this.spaceKey?.removeAllListeners();
+
+    const canvas = this.scene.game.canvas;
+    if (canvas) {
+      if (this.boundNativeStart) canvas.removeEventListener("touchstart", this.boundNativeStart);
+      if (this.boundNativeMove) canvas.removeEventListener("touchmove", this.boundNativeMove);
+      if (this.boundNativeEnd) {
+        canvas.removeEventListener("touchend", this.boundNativeEnd);
+        canvas.removeEventListener("touchcancel", this.boundNativeEnd);
+      }
+    }
   }
 
   private emitSplit(): void {

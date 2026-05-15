@@ -28,7 +28,7 @@ export class CooldownRing extends Phaser.GameObjects.Container {
     this.gfx = cfg.scene.add.graphics();
     this.add(this.gfx);
 
-    this.label = cfg.scene.add.text(0, 0, "S", {
+    this.label = cfg.scene.add.text(0, 0, "", {
       fontSize: `${UI.fontSizes.small}px`,
       color: "#ffffff",
       fontStyle: "bold",

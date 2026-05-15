@@ -1,4 +1,6 @@
 import { GameEvents } from "@events/GameEvents";
+import { saves } from "@systems/SaveManager";
+import type { SaveV1 } from "@/types/save";
 import { JoystickEvents } from "@systems/InputSystem";
 import type { JoystickShowPayload, JoystickMovePayload } from "@systems/InputSystem";
 import type {
@@ -15,8 +17,13 @@ interface CycleStartPayload {
   cycle: number;
 }
 
-const LEADERBOARD_VISIBLE = 5;
+const LEADERBOARD_TOP = 3;
+const HERO_NEIGHBORS = 1;
 const COIN_FLYER_MAX = 8;
+
+type LbRowItem = { kind: "row"; rank: number; entry: LeaderboardEntry };
+type LbSepItem = { kind: "sep"; label: string };
+type LbItem = LbRowItem | LbSepItem;
 
 function colorToHex(c: number): string {
   return `#${c.toString(16).padStart(6, "0")}`;
@@ -113,6 +120,10 @@ export class DomHUD {
     const overlay = document.getElementById("ui-overlay");
     overlay?.appendChild(this.root);
 
+    // Seed counter from persisted balance so it doesn't read 0 until the first
+    // CoinTotalChanged event fires this round.
+    this.coinsCountEl.textContent = String(saves.get<SaveV1>().coins ?? 0);
+
     // Move the joystick out of #ui-overlay. The overlay runs CSS shake
     // animations (`transform: translate`) on capture/death, and a transformed
     // ancestor pulls `position: fixed` descendants along with it. Hosting the
@@ -182,7 +193,7 @@ export class DomHUD {
 
   private build(): void {
     this.root.innerHTML = `
-      <button class="hud-pause-btn" id="hud-pause-btn" aria-label="Pause">
+      <button class="hud-pause-btn" id="hud-pause-btn" aria-label="${escapeHtml(t("hud_pause"))}">
         <i class="ph ph-pause"></i>
       </button>
 
@@ -356,79 +367,101 @@ export class DomHUD {
   }
 
   private onLeaderboard(payload: LeaderboardUpdatePayload): void {
-    const top = payload.entries.slice(0, LEADERBOARD_VISIBLE);
-    const heroIncluded = top.some((e) => e.isHero);
+    const items = this.buildLeaderboardItems(payload);
 
-    // Build a lightweight cache key to detect unchanged payloads
+    // Cache key — fingerprints rendered set so we skip on no-op updates
     let cacheKey = "";
-    for (let i = 0; i < top.length; i++) {
-      const e = top[i] as LeaderboardEntry;
-      cacheKey += `${e.id}:${e.percent.toFixed(1)}:${e.alive ? 1 : 0}:${e.isHero ? 1 : 0}|`;
-    }
-    if (!heroIncluded) {
-      const heroEntry = payload.entries.find((e) => e.isHero);
-      if (heroEntry) {
-        cacheKey += `hero:${payload.heroRank}:${heroEntry.percent.toFixed(1)}:${heroEntry.alive ? 1 : 0}`;
+    for (const it of items) {
+      if (it.kind === "sep") {
+        cacheKey += `S:${it.label}|`;
+      } else {
+        const e = it.entry;
+        cacheKey += `${it.rank}:${e.id}:${e.percent.toFixed(1)}:${e.alive ? 1 : 0}:${e.isHero ? 1 : 0}|`;
       }
     }
-
     if (cacheKey === this.lbCacheKey) return;
     this.lbCacheKey = cacheKey;
-
-    // Build desired row data
-    const desired: Array<{ rank: number; entry: LeaderboardEntry; sep: boolean }> = [];
-    for (let i = 0; i < top.length; i++) {
-      desired.push({ rank: i + 1, entry: top[i] as LeaderboardEntry, sep: false });
-    }
-    if (!heroIncluded) {
-      const heroEntry = payload.entries.find((e) => e.isHero);
-      if (heroEntry) {
-        desired.push({ rank: -1, entry: heroEntry, sep: true });
-        desired.push({ rank: payload.heroRank, entry: heroEntry, sep: false });
-      }
-    }
 
     const list = this.leaderboardListEl;
     const existing = list.children;
 
-    // Patch existing nodes, add/remove only when count changes
-    for (let di = 0; di < desired.length; di++) {
-      const d = desired[di];
-      if (!d) continue;
-      if (di < existing.length) {
-        const li = existing[di] as HTMLLIElement;
-        if (d.sep) {
-          if (!li.classList.contains("hud-lb__sep")) {
-            li.className = "hud-lb__sep";
+    for (let di = 0; di < items.length; di++) {
+      const d = items[di] as LbItem;
+      const li = (di < existing.length ? existing[di] : null) as HTMLLIElement | null;
+
+      if (d.kind === "sep") {
+        if (li) {
+          if (!li.classList.contains("hud-lb__sep-label") || li.textContent !== d.label) {
+            li.className = "hud-lb__sep-label";
             li.setAttribute("aria-hidden", "true");
-            li.textContent = "…";
-            this.clearRowSpans(li);
+            li.textContent = d.label;
           }
         } else {
-          this.patchRow(li, d.rank, d.entry);
+          const newLi = document.createElement("li");
+          newLi.className = "hud-lb__sep-label";
+          newLi.setAttribute("aria-hidden", "true");
+          newLi.textContent = d.label;
+          list.appendChild(newLi);
         }
       } else {
-        const li = document.createElement("li");
-        if (d.sep) {
-          li.className = "hud-lb__sep";
-          li.setAttribute("aria-hidden", "true");
-          li.textContent = "…";
-        } else {
-          this.buildRowSpans(li);
+        if (li) {
+          if (li.classList.contains("hud-lb__sep-label") || li.classList.contains("hud-lb__sep")) {
+            li.removeAttribute("aria-hidden");
+            this.buildRowSpans(li);
+          }
           this.patchRow(li, d.rank, d.entry);
+        } else {
+          const newLi = document.createElement("li");
+          this.buildRowSpans(newLi);
+          this.patchRow(newLi, d.rank, d.entry);
+          list.appendChild(newLi);
         }
-        list.appendChild(li);
       }
     }
 
-    // Remove excess nodes
-    while (list.children.length > desired.length) {
+    while (list.children.length > items.length) {
       list.lastElementChild?.remove();
     }
   }
 
-  private clearRowSpans(li: HTMLLIElement): void {
-    li.innerHTML = "";
+  /**
+   * Build display items for the HUD leaderboard:
+   *  - Always include the top {LEADERBOARD_TOP} ranks.
+   *  - If the hero sits below that range, add a "Your position" segment with
+   *    the hero ±{HERO_NEIGHBORS} neighbors. Ranges that touch the top block
+   *    merge into a single contiguous list (no separator).
+   */
+  private buildLeaderboardItems(payload: LeaderboardUpdatePayload): LbItem[] {
+    const entries = payload.entries;
+    const total = entries.length;
+    if (total === 0) return [];
+
+    const heroIdx = entries.findIndex((e) => e.isHero);
+    const heroRank = heroIdx === -1 ? -1 : heroIdx + 1;
+
+    const topEnd = Math.min(LEADERBOARD_TOP, total);
+    const items: LbItem[] = [];
+
+    // Top block: ranks 1..topEnd
+    for (let i = 0; i < topEnd; i++) {
+      items.push({ kind: "row", rank: i + 1, entry: entries[i] as LeaderboardEntry });
+    }
+
+    if (heroIdx === -1 || heroRank <= topEnd) return items;
+
+    // Hero-context block: ranks [heroRank-N .. heroRank+N], clipped to bounds
+    const ctxFrom = Math.max(1, heroRank - HERO_NEIGHBORS);
+    const ctxTo = Math.min(total, heroRank + HERO_NEIGHBORS);
+
+    if (ctxFrom > topEnd + 1) {
+      items.push({ kind: "sep", label: t("hud_lb_your_position") });
+    }
+    const start = Math.max(topEnd + 1, ctxFrom);
+    for (let r = start; r <= ctxTo; r++) {
+      items.push({ kind: "row", rank: r, entry: entries[r - 1] as LeaderboardEntry });
+    }
+
+    return items;
   }
 
   private buildRowSpans(li: HTMLLIElement): void {

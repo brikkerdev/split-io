@@ -1,7 +1,14 @@
 // Input system tuning. Source: GDD §4.
 export const INPUT = {
-  /** Radians/sec max turn rate for smooth heading interpolation. */
+  /** Radians/sec max turn rate for smooth heading interpolation (desktop / default). */
   turnRateRadPerSec: 1000,
+
+  /**
+   * Mobile turn rate cap — gives the hero a visible turning radius like
+   * paper.io 2 instead of snapping instantly. Lower = wider arcs, higher =
+   * sharper. ~7–10 rad/s feels like the reference game.
+   */
+  turnRateRadPerSecMobile: 8,
 
   /** If raw heading delta < this (rad), skip update to avoid micro-jitter. */
   headingHysteresisRad: 0,
@@ -19,7 +26,14 @@ export const INPUT = {
   deadzonePixels: 70,
 
   /** Minimum swipe distance (px) from touch start to register direction on mobile. */
-  swipeDeadzonePixels: 12,
+  swipeDeadzonePixels: 14,
+
+  /**
+   * Mobile (paper.io 2 style) outer radius of the virtual joystick that maps
+   * finger offset → heading. Beyond this distance the touch origin trails the
+   * finger so the joystick stays in reach during long drags.
+   */
+  swipeAnchorRadiusPx: 80,
 
   /** Free-angle aim by default; set true for legacy 8-direction snap. */
   snapToSteps: false,

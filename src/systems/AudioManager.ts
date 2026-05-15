@@ -14,13 +14,6 @@ export class AudioManager {
   private currentMusic: Phaser.Sound.BaseSound | null = null;
   private lastPlayMs = new Map<string, number>();
 
-  // ---- Tension layer WebAudio nodes ----
-  private tensionOsc: OscillatorNode | null = null;
-  private tensionGain: GainNode | null = null;
-  private tensionLfo: OscillatorNode | null = null;
-  private tensionLfoGain: GainNode | null = null;
-  private tensionActive = false;
-
   // ---- Coin throttle ----
   private lastCoinMs = 0;
 
@@ -62,90 +55,11 @@ export class AudioManager {
   setMuted(muted: boolean): void {
     this.state.muted = muted;
     this.scene.sound.mute = muted;
-    if (muted) this.stopTensionLayer();
-  }
-
-  // ---- Tension layer (task 4) ----
-
-  setTensionLayer(active: boolean): void {
-    if (active === this.tensionActive) return;
-    this.tensionActive = active;
-    if (active) {
-      this.startTensionLayer();
-    } else {
-      this.stopTensionLayer();
-    }
   }
 
   private getAudioCtx(): AudioContext | null {
     const sm = this.scene.sound as Phaser.Sound.BaseSoundManager & { context?: AudioContext };
     return sm.context ?? null;
-  }
-
-  private startTensionLayer(): void {
-    if (this.state.muted) return;
-    const ctx = this.getAudioCtx();
-    if (!ctx) return;
-    if (ctx.state !== "running") return;
-
-    // Already running — skip duplicate start.
-    if (this.tensionOsc !== null) return;
-
-    const cfg = AUDIO.synth.tension;
-    const maxGain = cfg.maxGain * this.state.sfxVolume;
-
-    const lfo = ctx.createOscillator();
-    lfo.type = "sine";
-    lfo.frequency.setValueAtTime(cfg.lfoRateHz, ctx.currentTime);
-
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.setValueAtTime(cfg.lfoDepth, ctx.currentTime);
-    lfo.connect(lfoGain);
-
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(cfg.freqHz, ctx.currentTime);
-    lfoGain.connect(osc.frequency);
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(maxGain, ctx.currentTime + cfg.fadeInMs / 1000);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    lfo.start();
-    osc.start();
-
-    this.tensionOsc = osc;
-    this.tensionGain = gain;
-    this.tensionLfo = lfo;
-    this.tensionLfoGain = lfoGain;
-  }
-
-  private stopTensionLayer(): void {
-    const ctx = this.getAudioCtx();
-    const gain = this.tensionGain;
-    const osc = this.tensionOsc;
-    const lfo = this.tensionLfo;
-    if (!ctx || !gain || !osc) {
-      this.tensionOsc = null;
-      this.tensionGain = null;
-      this.tensionLfo = null;
-      this.tensionLfoGain = null;
-      return;
-    }
-    const cfg = AUDIO.synth.tension;
-    const fadeOutSec = cfg.fadeOutMs / 1000;
-    const stopAt = ctx.currentTime + fadeOutSec + 0.05;
-    gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fadeOutSec);
-    osc.stop(stopAt);
-    lfo?.stop(stopAt);
-    this.tensionOsc = null;
-    this.tensionGain = null;
-    this.tensionLfo = null;
-    this.tensionLfoGain = null;
   }
 
   // ---- Coin ping (task 5) ----

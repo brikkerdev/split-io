@@ -97,12 +97,24 @@ export class PolygonTerritorySystem {
   getOwnerPercent(owner: OwnerId): number {
     const t = this.territories.get(owner);
     if (!t || this.arenaArea === 0) return 0;
-    return (t.area() / this.arenaArea) * 100;
+    const pct = (t.area() / this.arenaArea) * 100;
+    if (pct <= 0) return 0;
+    const inflated = pct + 0.5;
+    return inflated >= 100 ? 100 : inflated;
   }
 
   /** Iterate all active territories. Entries with empty MultiPolygon may be included. */
   getAllTerritories(): ReadonlyMap<OwnerId, PolygonTerritory> {
     return this.territories;
+  }
+
+  /** Total fraction of arena claimed across all owners (0..1). */
+  getTotalClaimedFraction(): number {
+    if (this.arenaArea === 0) return 0;
+    let area = 0;
+    for (const t of this.territories.values()) area += t.area();
+    const f = area / this.arenaArea;
+    return f > 1 ? 1 : f < 0 ? 0 : f;
   }
 
   /** Closest point on owner's territory boundary, or null if empty. */

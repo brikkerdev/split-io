@@ -131,7 +131,6 @@ export class JuiceSystem {
         () => { this.ambientAccumSec = 0; },
       );
     }
-    this.audioManager?.setTensionLayer(active);
   }
 
   /**

@@ -154,6 +154,7 @@ export class DomSkinsModal {
         unlockedSkins: [...save.unlockedSkins, skinId],
         selectedSkin: skinId,
       });
+      this.game?.events.emit(GameEvents.CoinTotalChanged, { total: save.coins });
     } else {
       saves.patch({ selectedSkin: skinId });
     }

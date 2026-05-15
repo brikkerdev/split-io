@@ -146,6 +146,18 @@
   padding: 0 4px;
   list-style: none;
 }
+.hud-lb__sep-label {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: clamp(8px, 0.95vw, 10px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 4px 1px;
+  list-style: none;
+  border-top: 1px dashed rgba(0,0,0,0.18);
+  margin-top: 2px;
+}
 
 /* ── Coin counter — top right, above leaderboard ─────────── */
 .hud-coins {
@@ -438,19 +450,25 @@
     font-size: clamp(14px, 4.5vw, 20px);
   }
 
-  /* Leaderboard: compact rank list */
+  /* Leaderboard: readable list with hero context segment */
   .hud-leaderboard {
     min-width: 0;
-    width: clamp(96px, 36vw, 140px);
-    padding: 4px 6px;
+    width: clamp(132px, 42vw, 168px);
+    max-width: 46vw;
+    padding: 5px 7px;
   }
   .hud-lb__row {
-    grid-template-columns: 12px auto 1fr auto;
-    gap: 3px;
-    font-size: 9px;
+    grid-template-columns: 14px auto 1fr auto;
+    gap: 4px;
+    font-size: 11px;
+    padding: 2px 3px;
   }
   .hud-leaderboard__label {
+    font-size: 9px;
+  }
+  .hud-lb__sep-label {
     font-size: 8px;
+    padding: 3px 2px 1px;
   }
 
   /* Coins: smaller, anchored to right (avoid overlap with pause btn) */
@@ -464,28 +482,47 @@
     font-size: clamp(10px, 3vw, 13px);
   }
 
-  /* Split ring: tap target on bottom-right */
+  /* Split ring: bigger tap target on bottom-right */
   .hud-split {
     bottom: var(--mobile-safe-bot);
     right: var(--mobile-safe-r);
   }
   .hud-split__ring {
-    width: clamp(50px, 13vw, 64px);
-    height: clamp(50px, 13vw, 64px);
+    width: clamp(72px, 18vmin, 88px);
+    height: clamp(72px, 18vmin, 88px);
   }
-  /* Ensure minimum 56px tap target */
+  .hud-split__icon {
+    font-size: clamp(26px, 7vmin, 34px);
+  }
+  .hud-split__label {
+    font-size: clamp(10px, 3vw, 12px);
+    padding: 2px 12px;
+  }
+  /* Generous tap padding */
   .hud-split__ring::after {
     content: '';
     position: absolute;
-    inset: -8px;
+    inset: -10px;
   }
 
-  /* Pause button: safe-area aware */
+  /* Pause button: safe-area aware, finger-sized */
   .hud-pause-btn {
     top: var(--mobile-safe-top);
     left: var(--mobile-safe-l);
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+}
+
+/* ── Coarse pointer (touch tablets/phones, any width) ────── */
+@media (pointer: coarse) and (max-width: 900px) {
+  .hud-split__ring {
+    width: clamp(70px, 16vmin, 92px);
+    height: clamp(70px, 16vmin, 92px);
+  }
+  .hud-split__icon {
+    font-size: clamp(24px, 6vmin, 34px);
   }
 }
 

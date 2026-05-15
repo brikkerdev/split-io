@@ -44,6 +44,11 @@ export class DomMenu {
 
   unmount(): void {
     this.root.classList.remove("visible");
+    // Drop interactivity immediately so the fading menu doesn't eat the
+    // player's first swipe on iOS. Without this, the canvas is blocked for
+    // the full 160ms fade-out and the first pointerdown is lost.
+    this.root.classList.remove("interactive");
+    this.root.style.pointerEvents = "none";
     setTimeout(() => {
       this.root.remove();
       this.modalContainer.remove();

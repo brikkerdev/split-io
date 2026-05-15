@@ -223,6 +223,10 @@ export class DomUI {
 
     requestAnimationFrame(() => {
       yandex.gameReady();
+      // Sticky banner is shown exactly once, then never hidden, so the iframe
+      // height stays constant across menu↔gameplay transitions. Toggling it
+      // would reflow the canvas (changing aspect ratio mid-game).
+      void yandex.showBanner();
       window.__splash?.hide();
     });
   }
@@ -381,13 +385,13 @@ export class DomUI {
   mountTutorial(
     game: Phaser.Game,
     gameEvents: Phaser.Events.EventEmitter,
-    getHeroPos: () => { x: number; y: number } | null,
+    getHeroHeading: () => number | null,
     onComplete: () => void,
   ): void {
     DomUI.ensureOverlay(game);
     this.dismountTutorial();
     this.tutorial = new DomTutorial({
-      getHeroPos,
+      getHeroHeading,
       onComplete: () => {
         this.tutorial = null;
         onComplete();

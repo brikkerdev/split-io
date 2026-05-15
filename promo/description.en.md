@@ -1,13 +1,13 @@
-# Paint.io
+# Inkly.io
 
 ## Title (≤50)
-Paint.io
+Inkly.io
 
 ## SEO description (≤160)
-Paint.io is an arcade about territory capture. Paint the field, raise your capture percentage, climb to the top of the leaderboard.
+Inkly.io is an arcade about territory capture. Paint the field, raise your capture percentage, climb to the top of the leaderboard.
 
 ## About the game (~1000)
-Paint.io is an arcade about territory capture.
+Inkly.io is an arcade about territory capture.
 
 The hero moves across the field and leaves a wide colored trail behind. The area enclosed by the trail becomes yours. The goal is simple: paint the entire arena down to the last pixel.
 

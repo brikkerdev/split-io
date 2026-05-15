@@ -53,6 +53,7 @@ export class PhaseController {
   private continueUsed = false;
   private isPaused = false;
   private pauseStartMs = 0;
+  private upgradePickStartMs = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -72,6 +73,8 @@ export class PhaseController {
     this.continueUsed = false;
     this.isPaused = false;
     this.pauseStartMs = 0;
+    this.upgradePickStartMs = 0;
+    this.scene.tweens.timeScale = 1;
   }
 
   enterPlay(): void {
@@ -81,7 +84,10 @@ export class PhaseController {
     this.pauseStartMs = 0;
 
     this.deps.domUI.dismountMenu();
-    void yandex.hideBanner();
+    // Don't toggle the sticky banner here. On Yandex the banner reserves
+    // iframe space, so hide-on-play / show-on-menu reflows the canvas
+    // (aspect ratio shrinks when entering game, top HUD/menu shifts when
+    // returning). Keeping the banner state stable avoids both reflows.
 
     this.deps.heroCtrl.spawn();
     this.deps.camera.setupPlay(this.deps.hero);
@@ -115,7 +121,7 @@ export class PhaseController {
       this.deps.domUI.mountTutorial(
         this.scene.game,
         this.scene.events,
-        () => (this.deps.hero.alive ? { x: this.deps.hero.pos.x, y: this.deps.hero.pos.y } : null),
+        () => (this.deps.hero.alive ? this.deps.hero.heading : null),
         () => saves.patch({ tutorialShown: true }),
       );
     });
@@ -204,7 +210,8 @@ export class PhaseController {
     this.deps.markTerritoryDirty();
 
     this.deps.domUI.mountMenu(this.scene.game, () => this.enterPlay());
-    void yandex.showBanner();
+    // Sticky banner is left in whatever state the Yandex SDK chose at boot —
+    // see enterPlay() for the rationale (toggling reflows the iframe).
     void this.maybePromptShortcut();
   }
 
@@ -241,7 +248,17 @@ export class PhaseController {
 
   enterUpgradePick(): void {
     this.phase = "upgradePick";
+    this.upgradePickStartMs = this.scene.time.now;
+    this.scene.tweens.timeScale = 0;
     yandex.gameplayStop();
+  }
+
+  private consumeUpgradePickPause(): void {
+    this.scene.tweens.timeScale = 1;
+    if (this.upgradePickStartMs > 0) {
+      this.roundStartMs += this.scene.time.now - this.upgradePickStartMs;
+      this.upgradePickStartMs = 0;
+    }
   }
 
   /** Called by DomUI after player picks an upgrade card. */
@@ -252,12 +269,14 @@ export class PhaseController {
 
   /** Sub-threshold (25/50/75%) upgrade pick: resume play without map reset. */
   resumeAfterUpgrade(): void {
+    this.consumeUpgradePickPause();
     this.phase = "playing";
     yandex.gameplayStart();
   }
 
   /** Called when ProgressionSystem reports a full-cycle (100%) upgrade — resets map. */
   cycleReset(): void {
+    this.consumeUpgradePickPause();
     const cycle = this.deps.progressionSys.getCycleCount();
     const cfg = JUICE.cycleTransition;
     const cam = this.scene.cameras.main;

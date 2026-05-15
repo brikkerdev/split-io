@@ -1,12 +1,20 @@
-import { saves } from "@systems/SaveManager";
-import type { SaveV1 } from "@/types/save";
-
-/** Allowed UI-scale presets. Keep in sync with DomSettingsModal radio options. */
-export const UI_SCALE_PRESETS = [0.85, 1.0, 1.15] as const;
-export type UiScale = (typeof UI_SCALE_PRESETS)[number];
-
 const MIN = 0.6;
 const MAX = 1.6;
+
+/**
+ * Platform-aware UI scale. Mobile (coarse pointer) gets a small preset because
+ * HUD elements are already huge relative to a phone screen; desktop gets a
+ * larger preset so the HUD reads comfortably from typical viewing distance.
+ * No user-facing toggle — the value is fixed per platform.
+ */
+export function getDefaultUiScale(): number {
+  try {
+    const coarse = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    return coarse ? 0.85 : 1.15;
+  } catch {
+    return 1.0;
+  }
+}
 
 function clamp(v: number): number {
   if (!Number.isFinite(v)) return 1.0;
@@ -18,12 +26,7 @@ export function applyUiScale(scale: number): void {
   document.documentElement.style.setProperty("--ui-scale", String(clamp(scale)));
 }
 
-/** Read current uiScale from save and apply. Safe to call before save is loaded — falls back to 1.0. */
+/** Apply the platform-appropriate UI scale. Stored save values are ignored. */
 export function applyStoredUiScale(): void {
-  try {
-    const s = saves.get<SaveV1>().settings as { uiScale?: number };
-    applyUiScale(s.uiScale ?? 1.0);
-  } catch {
-    applyUiScale(1.0);
-  }
+  applyUiScale(getDefaultUiScale());
 }

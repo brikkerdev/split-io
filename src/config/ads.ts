@@ -2,8 +2,8 @@
 
 export const ADS = {
   interstitialCooldownMs: 60_000,
-  interstitialEveryNthRound: 2,
-  skipAfterFirstRound: true,
+  interstitialEveryNthRound: 1,
+  skipAfterFirstRound: false,
 
   continueRetainTerritoryPct: 0.7,
   continuePerRound: 1,

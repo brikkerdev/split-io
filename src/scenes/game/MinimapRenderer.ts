@@ -6,13 +6,20 @@ import type { BotAI } from "@systems/BotAI";
 import type { PolygonTerritorySystem } from "@systems/PolygonTerritorySystem";
 import type { Hero } from "@entities/Hero";
 
-const SIZE_PX = 200;
-const PADDING_PX = 18;
+const SIZE_REF = 200;
+const SIZE_MIN = 110;
+const SIZE_MAX = 200;
+const SIZE_VMIN_RATIO = 0.20;
 const ARENA_INSET = 4;
-const HERO_DOT_R = 4.2;
-const BOT_DOT_R = 3.2;
+const HERO_DOT_R_REF = 4.2;
+const BOT_DOT_R_REF = 3.2;
 const DEPTH = 10000;
 const ALPHA = 0.38;
+
+function computeSize(w: number, h: number): number {
+  const small = Math.min(w, h);
+  return Math.round(Math.max(SIZE_MIN, Math.min(SIZE_MAX, small * SIZE_VMIN_RATIO)));
+}
 
 export interface MinimapDeps {
   territory: PolygonTerritorySystem;
@@ -105,19 +112,25 @@ export class MinimapRenderer {
     const gfx = this.gfx;
     if (!gfx) return;
 
+    const screenW = this.scene.scale.width;
     const screenH = this.scene.scale.height;
-    const x0 = PADDING_PX;
-    const y0 = screenH - PADDING_PX - SIZE_PX;
-    const arenaR = SIZE_PX / 2 - ARENA_INSET;
-    const cx = x0 + SIZE_PX / 2;
-    const cy = y0 + SIZE_PX / 2;
+    const sizePx = computeSize(screenW, screenH);
+    const paddingPx = Math.round(sizePx * 0.09);
+    const sizeRatio = sizePx / SIZE_REF;
+    const heroDotR = HERO_DOT_R_REF * sizeRatio;
+    const botDotR = BOT_DOT_R_REF * sizeRatio;
+    const x0 = paddingPx;
+    const y0 = screenH - paddingPx - sizePx;
+    const arenaR = sizePx / 2 - ARENA_INSET * sizeRatio;
+    const cx = x0 + sizePx / 2;
+    const cy = y0 + sizePx / 2;
     const scale = arenaR / MAP.radiusPx;
 
     gfx.clear();
     gfx.setPosition(0, 0);
     gfx.setAlpha(ALPHA);
 
-    const outerR = SIZE_PX / 2;
+    const outerR = sizePx / 2;
 
     // Feathered halo
     const haloSteps = 10;
@@ -176,9 +189,9 @@ export class MinimapRenderer {
       if (!bot.alive) continue;
       const m = this.worldToMini(bot.pos.x, bot.pos.y, scale, cx, cy);
       gfx.fillStyle(shadeColor(bot.color, -0.45), 0.9);
-      gfx.fillCircle(m.mx, m.my, BOT_DOT_R + 0.8);
+      gfx.fillCircle(m.mx, m.my, botDotR + 0.8 * sizeRatio);
       gfx.fillStyle(bot.color, 1);
-      gfx.fillCircle(m.mx, m.my, BOT_DOT_R);
+      gfx.fillCircle(m.mx, m.my, botDotR);
     }
 
     // Hero dot — drawn last, slightly larger, with outline.
@@ -187,9 +200,9 @@ export class MinimapRenderer {
       const m = this.worldToMini(hero.pos.x, hero.pos.y, scale, cx, cy);
       const hf = this.deps.heroFill();
       gfx.fillStyle(shadeColor(hf, -0.5), 1);
-      gfx.fillCircle(m.mx, m.my, HERO_DOT_R + 1.2);
+      gfx.fillCircle(m.mx, m.my, heroDotR + 1.2 * sizeRatio);
       gfx.fillStyle(hf, 1);
-      gfx.fillCircle(m.mx, m.my, HERO_DOT_R);
+      gfx.fillCircle(m.mx, m.my, heroDotR);
     }
   }
 }

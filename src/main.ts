@@ -54,6 +54,16 @@ async function bootstrap(): Promise<void> {
       default: "arcade",
       arcade: { gravity: { x: 0, y: 0 }, debug: false },
     },
+    input: {
+      // Explicitly enable both pipelines so iOS Safari (pointer events flaky
+      // inside Yandex iframes) still gets touch via the legacy TouchManager.
+      mouse: true,
+      touch: true,
+      // Suppress the contextmenu event — long-press on iOS otherwise pops the
+      // share sheet and cancels the gesture mid-swipe.
+      windowEvents: true,
+    },
+    disableContextMenu: true,
     render: {
       pixelArt: false,
       // MSAA on integrated GPUs (Yandex iframe often forces integrated context)
@@ -70,6 +80,12 @@ async function bootstrap(): Promise<void> {
 
   const game = new Phaser.Game(config);
   yandex.setGame(game);
+
+  // Pre-register extra pointer slots so multi-touch is tracked from boot.
+  // Without this, on Yandex's mobile iframe Phaser allocates the slot lazily
+  // on the first touch — the lazy allocation costs a frame and the first
+  // pointerdown can be missed, leaving the player swipe-and-no-response.
+  game.input.addPointer(2);
 
   if (new URLSearchParams(location.search).get("dev") === "1") {
     (window as unknown as { __game: Phaser.Game }).__game = game;

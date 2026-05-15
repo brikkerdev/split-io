@@ -64,6 +64,6 @@ export interface YsdkLeaderboards {
   setLeaderboardScore(name: string, score: number, extra?: string): Promise<void>;
   getLeaderboardEntries(
     name: string,
-    opts?: { quantityTop?: number; includeUser?: boolean },
+    opts?: { quantityTop?: number; includeUser?: boolean; quantityAround?: number },
   ): Promise<YsdkLeaderboardResponse>;
 }

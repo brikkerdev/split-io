@@ -15,6 +15,7 @@ class YandexSDK {
   private player: Awaited<ReturnType<YsdkRoot["getPlayer"]>> | null = null;
   private lastInterstitialAt = 0;
   private ready = false;
+  private bannerShown = false;
   private game: Phaser.Game | null = null;
 
   setGame(game: Phaser.Game): void {
@@ -117,10 +118,18 @@ class YandexSDK {
     }
     return new Promise<boolean>((resolve) => {
       let rewarded = false;
+      let settled = false;
       let restore: (() => void) | null = null;
-      const done = (result: boolean) => {
+      const settle = (result: boolean) => {
+        if (settled) return;
+        settled = true;
         restore?.();
         resolve(result);
+      };
+      // Yandex sometimes fires onClose before onRewarded — defer settling on close
+      // so the reward callback can flip the flag first.
+      const settleAfterClose = () => {
+        setTimeout(() => settle(rewarded), 150);
       };
       this.ysdk?.adv.showRewardedVideo({
         callbacks: {
@@ -128,14 +137,16 @@ class YandexSDK {
           onRewarded: () => {
             rewarded = true;
           },
-          onClose: () => done(rewarded),
-          onError: () => done(false),
+          onClose: () => settleAfterClose(),
+          onError: () => settle(false),
         },
       });
     });
   }
 
   async showBanner(): Promise<void> {
+    if (this.bannerShown) return;
+    this.bannerShown = true;
     if (!this.ysdk) {
       if (DEBUG) console.log("[yandex:mock] showBanner");
       return;
@@ -234,11 +245,12 @@ class YandexSDK {
     name: string,
     quantityTop = 10,
     includeUser = true,
+    quantityAround = 0,
   ): Promise<YsdkLeaderboardResponse | null> {
     if (!this.ysdk) return null;
     try {
       const lb = await this.ysdk.getLeaderboards();
-      return await lb.getLeaderboardEntries(name, { quantityTop, includeUser });
+      return await lb.getLeaderboardEntries(name, { quantityTop, includeUser, quantityAround });
     } catch (err) {
       console.warn("[yandex] leaderboard fetch failed:", err);
       return null;

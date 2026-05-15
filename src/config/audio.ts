@@ -3,15 +3,6 @@
 export const AUDIO = {
   /** WebAudio synthesised SFX params — no asset files needed. */
   synth: {
-    /** Tension layer: sub-bass sine with LFO while hero is outside own territory. */
-    tension: {
-      freqHz: 95,
-      lfoRateHz: 0.35,
-      lfoDepth: 12,
-      maxGain: 0.15,
-      fadeInMs: 400,
-      fadeOutMs: 600,
-    },
     /** Coin "ting": high sine/triangle envelope. */
     coin: {
       freqHzMin: 880,

@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import { BALANCE } from "@config/balance";
 import { GRID } from "@config/grid";
 import { MAP } from "@config/map";
 import type { GridSystem } from "@systems/GridSystem";
@@ -61,6 +62,15 @@ export class DemoController {
     this.scene.time.delayedCall(delayMs, () => {
       const bot = this.deps.botAI.getAll().find((b) => b.id === id);
       if (!bot || bot.alive) return;
+
+      // Scale active bot count down with map fill: at 50% claimed → ~half
+      // the roster respawns; at 100% only the floor remains. Keeps endgame
+      // sane instead of spamming bots into shrinking neutral land.
+      if (this.aliveBotCount() >= this.targetBotCount()) {
+        // Skip this respawn entirely — bot stays dead until fill drops.
+        return;
+      }
+
       const cell = this.pickOffscreenSpawnCell();
       if (!cell) {
         // No clear spot; retry later instead of forcing a spawn on owned land.
@@ -72,6 +82,19 @@ export class DemoController {
     });
   }
 
+  private aliveBotCount(): number {
+    let n = 0;
+    for (const b of this.deps.botAI.getAll()) if (b.alive) n++;
+    return n;
+  }
+
+  private targetBotCount(): number {
+    const claimed = this.deps.territory.getTotalClaimedFraction();
+    const total = this.deps.botAI.getAll().length;
+    const scaled = Math.ceil(total * (1 - claimed));
+    return Math.max(BALANCE.botCountClaimedFloor, scaled);
+  }
+
   /** Random unowned cell inside the play area, outside the camera view if possible. */
   private pickOffscreenSpawnCell(): { cx: number; cy: number } | null {
     const grid = this.deps.grid;
@@ -79,7 +102,10 @@ export class DemoController {
     const r = GRID.startTerritoryRadiusCells;
     const cellPx = grid.cellPx;
     const view = this.scene.cameras.main.worldView;
-    const padPx = cellPx * (r + 1);
+    // Pad the camera rect by the bot's start-territory radius plus a buffer
+    // so a freshly spawned bot (and its claimed square) cannot peek into the
+    // player's field of view at all.
+    const padPx = cellPx * (r + 4);
     const innerR = MAP.radiusPx - (r + 2) * cellPx;
     const probePx = r * cellPx;
 
@@ -104,7 +130,7 @@ export class DemoController {
       return true;
     };
 
-    for (let attempt = 0; attempt < 32; attempt++) {
+    for (let attempt = 0; attempt < 64; attempt++) {
       const ang = Math.random() * Math.PI * 2;
       const rad = Math.sqrt(Math.random()) * Math.max(0, innerR);
       const wx = MAP.centerX + Math.cos(ang) * rad;
@@ -114,15 +140,8 @@ export class DemoController {
       const { cx, cy } = grid.worldToCell({ x: wx, y: wy });
       return { cx, cy };
     }
-    for (let attempt = 0; attempt < 16; attempt++) {
-      const ang = Math.random() * Math.PI * 2;
-      const rad = Math.sqrt(Math.random()) * Math.max(0, innerR);
-      const wx = MAP.centerX + Math.cos(ang) * rad;
-      const wy = MAP.centerY + Math.sin(ang) * rad;
-      if (!isClear(wx, wy)) continue;
-      const { cx, cy } = grid.worldToCell({ x: wx, y: wy });
-      return { cx, cy };
-    }
+    // Strictly refuse on-screen spawns — the caller will retry later. Better
+    // to leave a slot empty for a beat than pop a bot into the player's view.
     return null;
   }
 }

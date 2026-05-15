@@ -33,7 +33,14 @@ const SPLIT_TRI_GAP_MAX = 11;
 const GLOW_BOT_COUNT = 5;
 
 // Movement-dust particles tinted with the territory color a unit is on.
-const MAX_DUST = 120;                  // hard cap — evict oldest on overflow
+// Mobile devices use a smaller cap — fillCircle work scales linearly and even
+// idle-state dust (heroes drifting) eats fillrate on integrated mobile GPUs.
+const isMobile = (() => {
+  if (typeof window === "undefined") return false;
+  if (typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(pointer: coarse)").matches;
+})();
+const MAX_DUST = isMobile ? 50 : 120;  // hard cap — evict oldest on overflow
 const DUST_SPAWN_INTERVAL_MS = 65;     // min gap between spawns per unit
 const DUST_SPAWN_CHANCE = 0.7;         // probabilistic spawn → less rhythmic
 const DUST_LIFE_MS = 420;              // particle lifetime (mean)
@@ -75,6 +82,8 @@ export interface RendererDeps {
   heroTrail: () => number;
   heroPattern: () => PatternId;
   heroFillSecondary: () => number | undefined;
+  /** 0..1 scale applied to hero body during spawn intro. Defaults to 1. */
+  heroRenderScale?: () => number;
 }
 
 const PATTERN_OVERLAY_ALPHA = 0.55;
@@ -699,16 +708,21 @@ export class GameRenderer {
       if (rings.length > 0) ownerRings.set(ownerId, rings);
     }
 
-    // Shadow pass.
-    const shadowOff = cfg.shadowOffsetPx;
-    for (const [ownerId, rings] of ownerRings) {
-      const a = alphaFor(ownerId);
-      if (a <= 0) continue;
-      gfx.fillStyle(0x000000, cfg.shadowAlpha * a);
-      for (const ring of rings) {
-        if (ring.length < 3) continue;
-        traceRing(gfx, ring, shadowOff, shadowOff);
-        gfx.fillPath();
+    // Shadow pass — skipped on mobile. The drop shadow is subtle (alpha ~0.10)
+    // and mostly hidden by adjacent territory anyway. Each pass triangulates
+    // every owner's outer rings; cutting one pass is one earcut + fillPath
+    // batch worth of CPU per frame, which is the single biggest territory win.
+    if (!isMobile) {
+      const shadowOff = cfg.shadowOffsetPx;
+      for (const [ownerId, rings] of ownerRings) {
+        const a = alphaFor(ownerId);
+        if (a <= 0) continue;
+        gfx.fillStyle(0x000000, cfg.shadowAlpha * a);
+        for (const ring of rings) {
+          if (ring.length < 3) continue;
+          traceRing(gfx, ring, shadowOff, shadowOff);
+          gfx.fillPath();
+        }
       }
     }
 
@@ -768,6 +782,15 @@ export class GameRenderer {
     traceRing: (g: Phaser.GameObjects.Graphics, ring: ReadonlyArray<[number, number]>, offX?: number, offY?: number) => void,
     alphaFor: (ownerId: number) => number,
   ): void {
+    // Mobile: drop pattern overlays entirely — each non-solid skin spawns a
+    // world-covering TileSprite with a per-owner geometry mask (stencil pass
+    // over every territory pixel). On integrated mobile GPUs this is the most
+    // expensive single pipeline. Hide existing sprites and bail.
+    if (isMobile) {
+      for (const sprite of this.patternSprites.values()) sprite.setVisible(false);
+      return;
+    }
+
     const hero = this.deps.hero;
     const heroPattern = this.deps.heroPattern();
     const worldW = GRID.cols * GRID.cellPx;
@@ -1180,20 +1203,22 @@ export class GameRenderer {
     // Bot ghosts — drawn via pooled triangle sprites further down so the
     // anti-aliased silhouette matches the hero ghost.
 
-    if (hero.alive) {
+    const heroScale = Phaser.Math.Clamp(this.deps.heroRenderScale?.() ?? 1, 0, 1.25);
+    const heroR = HERO_RADIUS_PX * heroScale;
+    if (hero.alive && heroScale > 0.01) {
       gfx.fillStyle(heroFill, PALETTE.hero.glow * 0.4);
-      gfx.fillCircle(heroX, heroY, HERO_RADIUS_PX * 2.5);
+      gfx.fillCircle(heroX, heroY, heroR * 2.5);
       gfx.fillStyle(heroFill, 1);
-      gfx.fillCircle(heroX, heroY, HERO_RADIUS_PX);
+      gfx.fillCircle(heroX, heroY, heroR);
     }
 
     const hl = this.heroHighlightGfx;
     if (hl) {
       hl.clear();
-      if (hero.alive) {
+      if (hero.alive && heroScale > 0.01) {
         const outline = shadeColor(heroFill, -0.45);
         hl.lineStyle(2, outline, 0.85);
-        hl.strokeCircle(heroX, heroY, HERO_RADIUS_PX);
+        hl.strokeCircle(heroX, heroY, heroR);
       }
     }
 

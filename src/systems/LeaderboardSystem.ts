@@ -9,8 +9,31 @@ export interface LeaderboardEntry {
   score: number;
 }
 
+export interface LeaderboardData {
+  top: LeaderboardEntry[];
+  around: LeaderboardEntry[];
+  playerRank: number;
+}
+
 const LS_KEY = "lb_mock";
 const MOCK_PLAYER_ID = "__player__";
+
+/**
+ * Module-level cache so multiple modal opens within one session reuse data.
+ * Cleared automatically on page reload (in-memory only). Invalidated on
+ * successful score submission to reflect the new ranking on next open.
+ */
+let cachedData: LeaderboardData | null = null;
+let cachedKey = "";
+
+function cacheKeyFor(topN: number, aroundN: number): string {
+  return `${topN}:${aroundN}`;
+}
+
+function invalidateLeaderboardCache(): void {
+  cachedData = null;
+  cachedKey = "";
+}
 
 export class LeaderboardSystem {
   private lastSubmitted = 0;
@@ -99,6 +122,7 @@ export class LeaderboardSystem {
     if (yandex.isMock) {
       this.lastSubmitted = score;
       this.upsertMock(score);
+      invalidateLeaderboardCache();
       return;
     }
 
@@ -113,6 +137,7 @@ export class LeaderboardSystem {
     this.lastSubmitted = score;
     await yandex.setLeaderboardScore(SCORE.leaderboardName, score);
     try { saves.patch({ pendingLbScore: 0 }); } catch { /* not loaded */ }
+    invalidateLeaderboardCache();
   }
 
   /**
@@ -128,6 +153,7 @@ export class LeaderboardSystem {
       if (pending > 0) {
         this.upsertMock(pending);
         try { saves.patch({ pendingLbScore: 0 }); } catch { /* not loaded */ }
+        invalidateLeaderboardCache();
       }
       return true;
     }
@@ -142,6 +168,7 @@ export class LeaderboardSystem {
       this.lastSubmitted = pending;
       await yandex.setLeaderboardScore(SCORE.leaderboardName, pending);
       try { saves.patch({ pendingLbScore: 0 }); } catch { /* not loaded */ }
+      invalidateLeaderboardCache();
     }
     return true;
   }
@@ -171,5 +198,76 @@ export class LeaderboardSystem {
     const response = await yandex.getLeaderboardEntries(SCORE.leaderboardName, 1, true);
     if (!response?.userEntry) return -1;
     return response.userEntry.rank;
+  }
+
+  /**
+   * Fetch top {topN} plus the player and {aroundN} entries above/below them.
+   * `around` excludes any rank already present in `top` so the modal can
+   * render `top + separator + around` without duplicates.
+   */
+  async getLeaderboardData(topN = 10, aroundN = 1): Promise<LeaderboardData> {
+    const key = cacheKeyFor(topN, aroundN);
+    if (cachedData !== null && cachedKey === key) {
+      return cachedData;
+    }
+
+    const data = await this.fetchLeaderboardData(topN, aroundN);
+    cachedData = data;
+    cachedKey = key;
+    return data;
+  }
+
+  private async fetchLeaderboardData(topN: number, aroundN: number): Promise<LeaderboardData> {
+    if (yandex.isMock) {
+      const all = this.getMockEntries();
+      const playerIdx = all.findIndex((e) => e.name === MOCK_PLAYER_ID);
+      const playerRank = playerIdx === -1 ? -1 : all[playerIdx]!.rank;
+
+      const top: LeaderboardEntry[] = all.slice(0, topN).map((e) => ({
+        rank: e.rank,
+        name: e.name,
+        score: e.score,
+      }));
+
+      let around: LeaderboardEntry[] = [];
+      if (playerIdx !== -1 && playerRank > topN) {
+        const from = Math.max(topN, playerIdx - aroundN);
+        const to = Math.min(all.length - 1, playerIdx + aroundN);
+        around = all.slice(from, to + 1).map((e) => ({
+          rank: e.rank,
+          name: e.name,
+          score: e.score,
+        }));
+      }
+
+      return { top, around, playerRank };
+    }
+
+    const response = await yandex.getLeaderboardEntries(
+      SCORE.leaderboardName,
+      topN,
+      true,
+      aroundN,
+    );
+    if (!response) return { top: [], around: [], playerRank: -1 };
+
+    const playerRank = response.userEntry?.rank ?? -1;
+    const all: LeaderboardEntry[] = response.entries.map((e) => ({
+      rank: e.rank,
+      name: e.player.publicName,
+      score: e.score,
+    }));
+
+    // Yandex returns a merged list; split by rank vs top size.
+    const top: LeaderboardEntry[] = [];
+    const around: LeaderboardEntry[] = [];
+    for (const e of all) {
+      if (e.rank <= topN) top.push(e);
+      else around.push(e);
+    }
+    top.sort((a, b) => a.rank - b.rank);
+    around.sort((a, b) => a.rank - b.rank);
+
+    return { top, around, playerRank };
   }
 }

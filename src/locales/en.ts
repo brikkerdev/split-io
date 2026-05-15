@@ -13,6 +13,7 @@ export const en: Record<string, string> = {
   hud_territory: "Territory",
   hud_leaderboard: "Top Players",
   hud_lb_you: "You",
+  hud_lb_your_position: "Your position",
   hud_split_ready: "Launch!",
   hud_hint_move: "Move!",
   hud_coins: "Coins",
@@ -118,6 +119,8 @@ export const en: Record<string, string> = {
   daily_amount: "+{amount} Coins",
   daily_next: "Next claim in {time}",
   daily_day_n: "Day {n}",
+  daily_day_short: "D{n}",
+  hud_pause: "Pause",
   daily_streak_label: "Streak: {n} days in a row",
   daily_streak_idle: "Show up daily — keep the flame alive!",
   daily_streak_best: "Best: {n} days",
@@ -139,6 +142,10 @@ export const en: Record<string, string> = {
   leaderboard_consent_accept: "Sign in and submit",
   leaderboard_consent_decline: "Not now",
   leaderboard_consent_pending: "Your score: {score}",
+  leaderboard_auth_title: "Sign in",
+  leaderboard_auth_text: "Sign in to appear on the leaderboard.",
+  leaderboard_auth_accept: "Sign in",
+  leaderboard_auth_decline: "View leaderboard",
 
   // Pause
   tutorial_move: "Steer your hero — a trail follows you",
@@ -211,6 +218,6 @@ export const en: Record<string, string> = {
   ok: "OK",
 
   // App
-  app_title: "Paint.io",
+  app_title: "Inkly.io",
   coming_soon: "Coming soon",
 };

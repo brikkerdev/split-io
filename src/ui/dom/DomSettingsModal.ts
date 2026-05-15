@@ -7,7 +7,6 @@ import { SUPPORTED_LANGS } from "@config/game";
 import { t } from "./i18n";
 import { GameEvents } from "@events/GameEvents";
 import { GlobalEvents } from "@events/GlobalEvents";
-import { applyUiScale, UI_SCALE_PRESETS } from "./uiScale";
 
 const VOLUME_STEP = 0.05;
 
@@ -93,7 +92,6 @@ export class DomSettingsModal {
     ));
 
     body.appendChild(this.buildControlRow(save.settings.controlScheme));
-    body.appendChild(this.buildUiScaleRow(save.settings.uiScale ?? 1.0));
     body.appendChild(this.buildLangRow(save.settings.lang));
 
     body.appendChild(this.buildResetRow());
@@ -257,10 +255,10 @@ export class DomSettingsModal {
         locale.setLang(DEFAULT_SAVE.settings.lang ?? locale.getLang());
       } catch { /* ignore */ }
       this.game.sound.volume = DEFAULT_SAVE.settings.sfxVolume;
-      applyUiScale(DEFAULT_SAVE.settings.uiScale);
-      // Hard reload so all in-memory state (achievements, unlocked skins,
-      // upgrade progress, etc.) is rebuilt from the fresh save.
-      window.location.reload();
+      // Persist the reset before reloading; otherwise the debounced flush
+      // races the reload and the next session may still see the old save
+      // (incl. tutorialShown=true, so tutorial wouldn't replay).
+      saves.flush().finally(() => window.location.reload());
     });
 
     actions.appendChild(cancelBtn);
@@ -276,55 +274,6 @@ export class DomSettingsModal {
     requestAnimationFrame(() => overlay.classList.add("visible"));
   }
 
-  private buildUiScaleRow(current: number): HTMLElement {
-    const row = document.createElement("div");
-    row.className = "settings-row settings-row--stacked";
-
-    const label = document.createElement("div");
-    label.className = "settings-label";
-    label.textContent = t("settings_ui_scale");
-
-    const group = document.createElement("div");
-    group.className = "settings-radio-group";
-
-    const labelKeys: Record<number, string> = {
-      0.85: "settings_ui_scale_small",
-      1.0: "settings_ui_scale_normal",
-      1.15: "settings_ui_scale_large",
-    };
-
-    // Snap stored value to the nearest preset so old saves with arbitrary values
-    // still light up exactly one radio.
-    const nearest = UI_SCALE_PRESETS.reduce((best, p) =>
-      Math.abs(p - current) < Math.abs(best - current) ? p : best,
-    );
-
-    UI_SCALE_PRESETS.forEach((preset) => {
-      const radioLabel = document.createElement("label");
-      radioLabel.className = "settings-radio-label";
-
-      const radio = document.createElement("input");
-      radio.type = "radio";
-      radio.name = "ui-scale";
-      radio.value = String(preset);
-      radio.checked = preset === nearest;
-
-      radio.addEventListener("change", () => {
-        if (!radio.checked) return;
-        const s = saves.get<SaveV1>().settings;
-        saves.patch({ settings: { ...s, uiScale: preset } });
-        applyUiScale(preset);
-      });
-
-      radioLabel.appendChild(radio);
-      radioLabel.appendChild(document.createTextNode(t(labelKeys[preset] ?? "")));
-      group.appendChild(radioLabel);
-    });
-
-    row.appendChild(label);
-    row.appendChild(group);
-    return row;
-  }
 
   private buildLangRow(currentLang: Lang | null): HTMLElement {
     const row = document.createElement("div");
